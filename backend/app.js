@@ -8,6 +8,9 @@ const mongoSanitize = require("express-mongo-sanitize");
 
 const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
+const vaultRoutes = require("./routes/vaultRoutes");
+const settingsRoutes = require("./routes/settingsRoutes");
+const utilRoutes = require("./routes/utilRoutes");
 const errorHandler = require("./middleware/errorHandler");
 
 const app = express();
@@ -26,6 +29,9 @@ app.use(mongoSanitize()); // strips $/. operators from req.body/query/params -> 
 
 // --- Routes ---
 app.use("/api/auth", authRoutes);
+app.use("/api/vault", vaultRoutes);
+app.use("/api/settings", settingsRoutes);
+app.use("/api/utils", utilRoutes);
 
 app.get("/api/health", (req, res) => res.json({ status: "ok" }));
 

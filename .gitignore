@@ -1,0 +1,12 @@
+# Secrets
+.env
+.env.*
+atlas-credentials.env
+
+# Dependencies
+node_modules/
+
+# Build files
+dist/
+build/
+.vite/

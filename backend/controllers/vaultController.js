@@ -1,6 +1,5 @@
 const User = require("../models/User");
 
-
 const {
   deriveVaultKey,
   verifyVaultKeyVerifier,
@@ -43,8 +42,6 @@ async function unlockVault(req, res, next) {
       });
     }
 
-    // Get the authenticated user, including the fields
-    // that are normally hidden by the User model.
     const user = await User.findById(req.userId).select(
       "+vaultSalt +vaultKeyCheckHash"
     );
@@ -55,13 +52,11 @@ async function unlockVault(req, res, next) {
       });
     }
 
-    // Derive the Vault Key from the supplied master password.
     const vaultKey = deriveVaultKey(
       masterPassword,
       user.vaultSalt
     );
 
-    // Check whether the derived key matches the stored verifier.
     const validMasterPassword =
       await verifyVaultKeyVerifier(
         user.vaultKeyCheckHash,
@@ -74,7 +69,6 @@ async function unlockVault(req, res, next) {
       });
     }
 
-    // If an old vault session exists, remove it first.
     const existingSessionId =
       req.cookies[VAULT_SESSION_COOKIE];
 
@@ -85,14 +79,11 @@ async function unlockVault(req, res, next) {
       );
     }
 
-    // Store the actual Vault Key only in server memory.
     const vaultSessionId = createVaultSession(
       req.userId,
       vaultKey
     );
 
-    // Send only the random session ID to the client.
-    // The actual Vault Key NEVER leaves server memory.
     res.cookie(
       VAULT_SESSION_COOKIE,
       vaultSessionId,
@@ -169,9 +160,41 @@ async function createItem(req, res, next) {
     const {
       type,
       title,
+
+      // Password / Secret
       username,
       password,
       secret,
+
+      // Environment variables
+      envContent,
+
+      // Database credentials
+      dbConnectionUri,
+      dbName,
+      dbHost,
+
+      // Note
+      noteContent,
+
+      // Resource
+      url,
+      whySaved,
+      whatToRemember,
+
+      // Code snippet
+      language,
+      code,
+
+      // Person
+      name,
+      email,
+      phone,
+      company,
+      role,
+
+      // Common
+      tags,
       data,
     } = req.body;
 
@@ -184,11 +207,36 @@ async function createItem(req, res, next) {
     const item = await createVaultItem({
       userId: req.userId,
       vaultKey,
+
       type,
       title,
+
       username,
       password,
       secret,
+
+      envContent,
+
+      dbConnectionUri,
+      dbName,
+      dbHost,
+
+      noteContent,
+
+      url,
+      whySaved,
+      whatToRemember,
+
+      language,
+      code,
+
+      name,
+      email,
+      phone,
+      company,
+      role,
+
+      tags,
       data,
     });
 
@@ -206,7 +254,6 @@ async function createItem(req, res, next) {
   }
 }
 
-
 async function listItems(req, res, next) {
   try {
     const items = await listVaultItems(req.userId);
@@ -218,7 +265,6 @@ async function listItems(req, res, next) {
     next(err);
   }
 }
-
 
 async function getItem(req, res, next) {
   try {
@@ -256,7 +302,6 @@ async function getItem(req, res, next) {
   }
 }
 
-
 async function updateItem(req, res, next) {
   try {
     const vaultSessionId =
@@ -276,9 +321,33 @@ async function updateItem(req, res, next) {
     const {
       type,
       title,
+
       username,
       password,
       secret,
+
+      envContent,
+
+      dbConnectionUri,
+      dbName,
+      dbHost,
+
+      noteContent,
+
+      url,
+      whySaved,
+      whatToRemember,
+
+      language,
+      code,
+
+      name,
+      email,
+      phone,
+      company,
+      role,
+
+      tags,
       data,
     } = req.body;
 
@@ -286,11 +355,36 @@ async function updateItem(req, res, next) {
       userId: req.userId,
       itemId: req.params.id,
       vaultKey,
+
       type,
       title,
+
       username,
       password,
       secret,
+
+      envContent,
+
+      dbConnectionUri,
+      dbName,
+      dbHost,
+
+      noteContent,
+
+      url,
+      whySaved,
+      whatToRemember,
+
+      language,
+      code,
+
+      name,
+      email,
+      phone,
+      company,
+      role,
+
+      tags,
       data,
     });
 
@@ -313,7 +407,6 @@ async function updateItem(req, res, next) {
     next(err);
   }
 }
-
 
 async function deleteItem(req, res, next) {
   try {

@@ -1,37 +1,141 @@
 const VaultItem = require("../models/VaultItem");
+
 const {
   encryptField,
   decryptField,
 } = require("../security/crypto");
 
 /**
+ * Maps each vault item type to the encrypted field
+ * that contains its sensitive value.
+ *
+ * null means the item type has no sensitive value.
+ */
+const SENSITIVE_FIELD_BY_TYPE = {
+  password: "passwordEncrypted",
+  secret: "secretEncrypted",
+  env: "envContentEncrypted",
+  dbCredential: "dbConnectionUriEncrypted",
+  note: "noteContentEncrypted",
+
+  resource: null,
+  snippet: null,
+  person: null,
+};
+
+/**
  * Create a vault item.
  *
- * Sensitive fields are encrypted before being stored in MongoDB.
+ * Sensitive values are encrypted before being stored
+ * in MongoDB.
  */
 async function createVaultItem({
   userId,
   vaultKey,
   type,
   title,
+
   username,
   password,
   secret,
+  envContent,
+
+  dbConnectionUri,
+  dbName,
+  dbHost,
+  
+  noteContent,
+
+  url,
+  whySaved,
+  whatToRemember,
+
+  language,
+  code,
+
+  name,
+  email,
+  phone,
+  company,
+  role,
+
+  tags,
   data = {},
 }) {
+  const encryptedFields = {};
+
+  const sensitiveField = SENSITIVE_FIELD_BY_TYPE[type];
+
+  if (sensitiveField === "passwordEncrypted" && password) {
+    encryptedFields.passwordEncrypted = encryptField(
+      password,
+      vaultKey
+    );
+  }
+
+  if (sensitiveField === "secretEncrypted" && secret) {
+    encryptedFields.secretEncrypted = encryptField(
+      secret,
+      vaultKey
+    );
+  }
+
+  if (sensitiveField === "envContentEncrypted" && envContent) {
+    encryptedFields.envContentEncrypted = encryptField(
+      envContent,
+      vaultKey
+    );
+  }
+
+  if (
+    sensitiveField === "dbConnectionUriEncrypted" &&
+    dbConnectionUri
+  ) {
+    encryptedFields.dbConnectionUriEncrypted = encryptField(
+      dbConnectionUri,
+      vaultKey
+    );
+  }
+
+  if (sensitiveField === "noteContentEncrypted" && noteContent) {
+    encryptedFields.noteContentEncrypted = encryptField(
+      noteContent,
+      vaultKey
+    );
+  }
+
+  // Username is only relevant to password/login items.
+  if (type === "password" && username) {
+    encryptedFields.usernameEncrypted = encryptField(
+      username,
+      vaultKey
+    );
+  }
+
   const item = new VaultItem({
     userId,
     type,
     title,
-    usernameEncrypted: username
-      ? encryptField(username, vaultKey)
-      : undefined,
-    passwordEncrypted: password
-      ? encryptField(password, vaultKey)
-      : undefined,
-    secretEncrypted: secret
-      ? encryptField(secret, vaultKey)
-      : undefined,
+
+    ...encryptedFields,
+
+    dbName,
+    dbHost,
+
+    url,
+    whySaved,
+    whatToRemember,
+
+    language,
+    code,
+
+    name,
+    email,
+    phone,
+    company,
+    role,
+
+    tags,
     data,
   });
 
@@ -39,7 +143,7 @@ async function createVaultItem({
 }
 
 /**
- * Get vault items without revealing encrypted secrets.
+ * Get vault items without revealing sensitive values.
  *
  * This can safely be used while the vault is locked.
  */
@@ -48,12 +152,14 @@ async function listVaultItems(userId) {
     userId,
     isDeleted: false,
   })
-    .select("type title data createdAt updatedAt")
+    .select(
+      "type title dbName dbHost url whySaved whatToRemember language code name email phone company role tags data createdAt updatedAt"
+    )
     .sort({ updatedAt: -1 });
 }
 
 /**
- * Get one vault item and decrypt its sensitive fields.
+ * Get one vault item and decrypt its sensitive value.
  */
 async function getVaultItem(userId, itemId, vaultKey) {
   const item = await VaultItem.findOne({
@@ -61,35 +167,110 @@ async function getVaultItem(userId, itemId, vaultKey) {
     userId,
     isDeleted: false,
   }).select(
-    "+usernameEncrypted +passwordEncrypted +secretEncrypted"
+    "+usernameEncrypted " +
+      "+passwordEncrypted " +
+      "+secretEncrypted " +
+      "+envContentEncrypted " +
+      "+dbConnectionUriEncrypted " +
+      "+noteContentEncrypted"
   );
 
   if (!item) {
     return null;
   }
 
-  return {
+  const result = {
     id: item._id,
     type: item.type,
     title: item.title,
 
-    username: item.usernameEncrypted
-      ? decryptField(item.usernameEncrypted, vaultKey)
-      : null,
+    username: null,
+    value: null,
 
-    password: item.passwordEncrypted
-      ? decryptField(item.passwordEncrypted, vaultKey)
-      : null,
+    dbName: item.dbName || null,
+    dbHost: item.dbHost || null,
 
-    secret: item.secretEncrypted
-      ? decryptField(item.secretEncrypted, vaultKey)
-      : null,
+    url: item.url || null,
+    whySaved: item.whySaved || null,
+    whatToRemember: item.whatToRemember || null,
 
+    language: item.language || null,
+    code: item.code || null,
+
+    name: item.name || null,
+    email: item.email || null,
+    phone: item.phone || null,
+    company: item.company || null,
+    role: item.role || null,
+
+    tags: item.tags || [],
     data: item.data,
 
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
+
+  if (item.usernameEncrypted) {
+    result.username = decryptField(
+      item.usernameEncrypted,
+      vaultKey
+    );
+  }
+
+  switch (item.type) {
+    case "password":
+      if (item.passwordEncrypted) {
+        result.value = decryptField(
+          item.passwordEncrypted,
+          vaultKey
+        );
+      }
+      break;
+
+    case "secret":
+      if (item.secretEncrypted) {
+        result.value = decryptField(
+          item.secretEncrypted,
+          vaultKey
+        );
+      }
+      break;
+
+    case "env":
+      if (item.envContentEncrypted) {
+        result.value = decryptField(
+          item.envContentEncrypted,
+          vaultKey
+        );
+      }
+      break;
+
+    case "dbCredential":
+      if (item.dbConnectionUriEncrypted) {
+        result.value = decryptField(
+          item.dbConnectionUriEncrypted,
+          vaultKey
+        );
+      }
+      break;
+
+    case "note":
+      if (item.noteContentEncrypted) {
+        result.value = decryptField(
+          item.noteContentEncrypted,
+          vaultKey
+        );
+      }
+      break;
+
+    case "resource":
+    case "snippet":
+    case "person":
+      // These types do not contain encrypted sensitive values.
+      break;
+  }
+
+  return result;
 }
 
 /**
@@ -101,9 +282,31 @@ async function updateVaultItem({
   vaultKey,
   type,
   title,
+
   username,
   password,
   secret,
+  envContent,
+  dbConnectionUri,
+  noteContent,
+
+  dbName,
+  dbHost,
+
+  url,
+  whySaved,
+  whatToRemember,
+
+  language,
+  code,
+
+  name,
+  email,
+  phone,
+  company,
+  role,
+
+  tags,
   data,
 }) {
   const item = await VaultItem.findOne({
@@ -111,7 +314,12 @@ async function updateVaultItem({
     userId,
     isDeleted: false,
   }).select(
-    "+usernameEncrypted +passwordEncrypted +secretEncrypted"
+    "+usernameEncrypted " +
+      "+passwordEncrypted " +
+      "+secretEncrypted " +
+      "+envContentEncrypted " +
+      "+dbConnectionUriEncrypted " +
+      "+noteContentEncrypted"
   );
 
   if (!item) {
@@ -127,21 +335,97 @@ async function updateVaultItem({
   }
 
   if (username !== undefined) {
-    item.usernameEncrypted = username
-      ? encryptField(username, vaultKey)
-      : undefined;
+    item.usernameEncrypted =
+      username
+        ? encryptField(username, vaultKey)
+        : undefined;
   }
 
   if (password !== undefined) {
-    item.passwordEncrypted = password
-      ? encryptField(password, vaultKey)
-      : undefined;
+    item.passwordEncrypted =
+      password
+        ? encryptField(password, vaultKey)
+        : undefined;
   }
 
   if (secret !== undefined) {
-    item.secretEncrypted = secret
-      ? encryptField(secret, vaultKey)
-      : undefined;
+    item.secretEncrypted =
+      secret
+        ? encryptField(secret, vaultKey)
+        : undefined;
+  }
+
+  if (envContent !== undefined) {
+    item.envContentEncrypted =
+      envContent
+        ? encryptField(envContent, vaultKey)
+        : undefined;
+  }
+
+  if (dbConnectionUri !== undefined) {
+    item.dbConnectionUriEncrypted =
+      dbConnectionUri
+        ? encryptField(dbConnectionUri, vaultKey)
+        : undefined;
+  }
+
+  if (noteContent !== undefined) {
+    item.noteContentEncrypted =
+      noteContent
+        ? encryptField(noteContent, vaultKey)
+        : undefined;
+  }
+
+  if (dbName !== undefined) {
+    item.dbName = dbName;
+  }
+
+  if (dbHost !== undefined) {
+    item.dbHost = dbHost;
+  }
+
+  if (url !== undefined) {
+    item.url = url;
+  }
+
+  if (whySaved !== undefined) {
+    item.whySaved = whySaved;
+  }
+
+  if (whatToRemember !== undefined) {
+    item.whatToRemember = whatToRemember;
+  }
+
+  if (language !== undefined) {
+    item.language = language;
+  }
+
+  if (code !== undefined) {
+    item.code = code;
+  }
+
+  if (name !== undefined) {
+    item.name = name;
+  }
+
+  if (email !== undefined) {
+    item.email = email;
+  }
+
+  if (phone !== undefined) {
+    item.phone = phone;
+  }
+
+  if (company !== undefined) {
+    item.company = company;
+  }
+
+  if (role !== undefined) {
+    item.role = role;
+  }
+
+  if (tags !== undefined) {
+    item.tags = tags;
   }
 
   if (data !== undefined) {
@@ -155,8 +439,6 @@ async function updateVaultItem({
 
 /**
  * Soft-delete a vault item.
- *
- * No decryption is required.
  */
 async function deleteVaultItem(userId, itemId) {
   const item = await VaultItem.findOneAndUpdate(

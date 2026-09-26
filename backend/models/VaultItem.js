@@ -13,10 +13,13 @@ const vaultItemSchema = new mongoose.Schema(
       type: String,
       enum: [
         "password",
-        "secure_note",
-        "card",
-        "identity",
-        "document",
+        "secret",
+        "env",
+        "dbCredential",
+        "note",
+        "resource",
+        "snippet",
+        "person",
       ],
       required: true,
     },
@@ -28,6 +31,7 @@ const vaultItemSchema = new mongoose.Schema(
       maxlength: 200,
     },
 
+    // Password / login fields
     usernameEncrypted: {
       type: String,
       select: false,
@@ -38,9 +42,96 @@ const vaultItemSchema = new mongoose.Schema(
       select: false,
     },
 
+    // Generic secret
     secretEncrypted: {
       type: String,
       select: false,
+    },
+
+    // Environment variables
+    envContentEncrypted: {
+      type: String,
+      select: false,
+    },
+
+    // Database credentials
+    dbConnectionUriEncrypted: {
+      type: String,
+      select: false,
+    },
+
+    dbName: {
+      type: String,
+      trim: true,
+    },
+
+    dbHost: {
+      type: String,
+      trim: true,
+    },
+
+    // Notes
+    noteContentEncrypted: {
+      type: String,
+      select: false,
+    },
+
+    // Non-sensitive resource fields
+    url: {
+      type: String,
+      trim: true,
+    },
+
+    whySaved: {
+      type: String,
+      trim: true,
+    },
+
+    whatToRemember: {
+      type: String,
+      trim: true,
+    },
+
+    // Code snippet
+    language: {
+      type: String,
+      trim: true,
+    },
+
+    code: {
+      type: String,
+    },
+
+    // Person
+    name: {
+      type: String,
+      trim: true,
+    },
+
+    email: {
+      type: String,
+      trim: true,
+    },
+
+    phone: {
+      type: String,
+      trim: true,
+    },
+
+    company: {
+      type: String,
+      trim: true,
+    },
+
+    role: {
+      type: String,
+      trim: true,
+    },
+
+    // Common metadata
+    tags: {
+      type: [String],
+      default: [],
     },
 
     data: {

@@ -11,3 +11,6 @@ dist/
 build/
 .vite/
 cookies.txt
+
+# Local project archive
+My-Vault-project.zip

@@ -16,12 +16,28 @@ const SENSITIVE_FIELD_BY_TYPE = {
   secret: "secretEncrypted",
   env: "envContentEncrypted",
   dbCredential: "dbConnectionUriEncrypted",
-  note: "noteContentEncrypted",
 
   resource: null,
   snippet: null,
   person: null,
 };
+
+/**
+ * Determines whether an item requires the master password.
+ *
+ * Notes are special:
+ * - sensitive: true  -> requires unlock
+ * - sensitive: false -> does not require unlock
+ *
+ * All other sensitive types keep their existing behavior.
+ */
+function itemRequiresUnlock(type, noteSensitive) {
+  if (type === "note") {
+    return noteSensitive === true;
+  }
+
+  return Boolean(SENSITIVE_FIELD_BY_TYPE[type]);
+}
 
 /**
  * Create a vault item.
@@ -43,8 +59,8 @@ async function createVaultItem({
   dbConnectionUri,
   dbName,
   dbHost,
-  
   noteContent,
+  sensitive,
 
   url,
   whySaved,
@@ -97,12 +113,16 @@ async function createVaultItem({
     );
   }
 
-  if (sensitiveField === "noteContentEncrypted" && noteContent) {
+  if (type === "note" && noteContent !== undefined) {
+  if (sensitive === true) {
     encryptedFields.noteContentEncrypted = encryptField(
       noteContent,
       vaultKey
     );
+  } else {
+    encryptedFields.noteContent = noteContent;
   }
+}  
 
   // Username is only relevant to password/login items.
   if (type === "password" && username) {
@@ -116,6 +136,8 @@ async function createVaultItem({
     userId,
     type,
     title,
+
+    sensitive,
 
     ...encryptedFields,
 
@@ -153,8 +175,8 @@ async function listVaultItems(userId) {
     isDeleted: false,
   })
     .select(
-      "type title dbName dbHost url whySaved whatToRemember language code name email phone company role tags data createdAt updatedAt"
-    )
+  "type title sensitive dbName dbHost url whySaved whatToRemember language code name email phone company role tags data createdAt updatedAt"
+)
     .sort({ updatedAt: -1 });
 }
 
@@ -172,8 +194,11 @@ async function getVaultItem(userId, itemId, vaultKey) {
       "+secretEncrypted " +
       "+envContentEncrypted " +
       "+dbConnectionUriEncrypted " +
+      "+noteContent " +
       "+noteContentEncrypted"
   );
+
+
 
   if (!item) {
     return null;
@@ -183,6 +208,10 @@ async function getVaultItem(userId, itemId, vaultKey) {
     id: item._id,
     type: item.type,
     title: item.title,
+
+    sensitive: item.type === "note"
+    ? item.sensitive
+    : null,
 
     username: null,
     value: null,
@@ -255,13 +284,17 @@ async function getVaultItem(userId, itemId, vaultKey) {
       break;
 
     case "note":
-      if (item.noteContentEncrypted) {
-        result.value = decryptField(
-          item.noteContentEncrypted,
-          vaultKey
-        );
-      }
-      break;
+  if (item.sensitive === true) {
+    if (item.noteContentEncrypted) {
+      result.value = decryptField(
+        item.noteContentEncrypted,
+        vaultKey
+      );
+    }
+  } else {
+    result.value = item.noteContent || null;
+  }
+  break;
 
     case "resource":
     case "snippet":
@@ -289,6 +322,7 @@ async function updateVaultItem({
   envContent,
   dbConnectionUri,
   noteContent,
+  sensitive,
 
   dbName,
   dbHost,
@@ -319,12 +353,18 @@ async function updateVaultItem({
       "+secretEncrypted " +
       "+envContentEncrypted " +
       "+dbConnectionUriEncrypted " +
-      "+noteContentEncrypted"
-  );
+      "+noteContent " +
+      "+noteContentEncrypted "
+
+    );
 
   if (!item) {
     return null;
   }
+
+  if (sensitive !== undefined) {
+  item.sensitive = sensitive;
+}
 
   if (type !== undefined) {
     item.type = type;
@@ -370,11 +410,17 @@ async function updateVaultItem({
   }
 
   if (noteContent !== undefined) {
-    item.noteContentEncrypted =
-      noteContent
-        ? encryptField(noteContent, vaultKey)
-        : undefined;
+  if (item.type === "note" && item.sensitive === true) {
+    item.noteContentEncrypted = noteContent
+      ? encryptField(noteContent, vaultKey)
+      : undefined;
+
+    item.noteContent = undefined;
+  } else if (item.type === "note") {
+    item.noteContent = noteContent;
+    item.noteContentEncrypted = undefined;
   }
+}
 
   if (dbName !== undefined) {
     item.dbName = dbName;
@@ -466,4 +512,6 @@ module.exports = {
   getVaultItem,
   updateVaultItem,
   deleteVaultItem,
+  itemRequiresUnlock,
+
 };

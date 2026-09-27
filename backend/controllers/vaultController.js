@@ -18,6 +18,7 @@ const {
   getVaultItem,
   updateVaultItem,
   deleteVaultItem,
+  itemRequiresUnlock,
 } = require("../services/vaultItemService");
 
 const VAULT_SESSION_COOKIE = "vaultSessionId";
@@ -141,24 +142,19 @@ function vaultStatus(req, res) {
   });
 }
 
+/**
+ * Create a vault item.
+ *
+ * Special rule:
+ * - Non-sensitive notes can be created while vault is locked.
+ * - Sensitive notes require the vault to be unlocked.
+ * - All other item types keep the existing unlock requirement.
+ */
 async function createItem(req, res, next) {
   try {
-    const vaultSessionId =
-      req.cookies[VAULT_SESSION_COOKIE];
-
-    const vaultKey = getVaultKey(
-      vaultSessionId,
-      req.userId
-    );
-
-    if (!vaultKey) {
-      return res.status(423).json({
-        error: "Vault is locked.",
-      });
-    }
-
     const {
       type,
+      sensitive,
       title,
 
       // Password / Secret
@@ -204,11 +200,45 @@ async function createItem(req, res, next) {
       });
     }
 
+    /*
+     * Decide whether this particular item needs
+     * the vault to be unlocked.
+     *
+     * For notes:
+     *   sensitive: false -> no unlock
+     *   sensitive: true  -> unlock
+     *
+     * Other types keep their existing behavior.
+     */
+    const requiresUnlock = itemRequiresUnlock(
+      type,
+      sensitive
+    );
+
+    let vaultKey = null;
+
+    if (requiresUnlock) {
+      const vaultSessionId =
+        req.cookies[VAULT_SESSION_COOKIE];
+
+      vaultKey = getVaultKey(
+        vaultSessionId,
+        req.userId
+      );
+
+      if (!vaultKey) {
+        return res.status(423).json({
+          error: "Vault is locked.",
+        });
+      }
+    }
+
     const item = await createVaultItem({
       userId: req.userId,
       vaultKey,
 
       type,
+      sensitive,
       title,
 
       username,
@@ -246,6 +276,7 @@ async function createItem(req, res, next) {
         id: item._id,
         type: item.type,
         title: item.title,
+        sensitive: item.sensitive,
         createdAt: item.createdAt,
       },
     });
@@ -312,6 +343,11 @@ async function updateItem(req, res, next) {
       req.userId
     );
 
+    /*
+     * Keep update behavior unchanged:
+     * editing an existing item requires
+     * the vault to be unlocked.
+     */
     if (!vaultKey) {
       return res.status(423).json({
         error: "Vault is locked.",
@@ -320,6 +356,7 @@ async function updateItem(req, res, next) {
 
     const {
       type,
+      sensitive,
       title,
 
       username,
@@ -357,6 +394,7 @@ async function updateItem(req, res, next) {
       vaultKey,
 
       type,
+      sensitive,
       title,
 
       username,
@@ -400,6 +438,7 @@ async function updateItem(req, res, next) {
         id: item._id,
         type: item.type,
         title: item.title,
+        sensitive: item.sensitive,
         updatedAt: item.updatedAt,
       },
     });

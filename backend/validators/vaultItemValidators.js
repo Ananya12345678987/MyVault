@@ -18,7 +18,23 @@ const createVaultItemValidator = [
     .isIn(VALID_TYPES)
     .withMessage("Invalid vault item type"),
 
-  body("title")
+  body("sensitive").custom((value, { req }) => {
+  if (req.body.type === "note" && value === undefined) {
+    throw new Error(
+      "Specify whether this note requires your master password..."
+    );
+  }
+
+  if (
+    value !== undefined &&
+    typeof value !== "boolean"
+  ) {
+    throw new Error("Sensitive must be a boolean");
+  }
+
+  return true;
+}),
+body("title")
     .isString()
     .withMessage("Title must be a string")
     .trim()

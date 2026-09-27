@@ -71,10 +71,24 @@ const vaultItemSchema = new mongoose.Schema(
     },
 
     // Notes
-    noteContentEncrypted: {
-      type: String,
-      select: false,
-    },
+    // Notes
+sensitive: {
+  type: Boolean,
+  required: function () {
+    return this.type === "note";
+  },
+},
+
+noteContent: {
+  type: String,
+  select: false,
+},
+
+noteContentEncrypted: {
+  type: String,
+  select: false,
+},
+   
 
     // Non-sensitive resource fields
     url: {

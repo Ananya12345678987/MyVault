@@ -72,22 +72,33 @@ const vaultItemSchema = new mongoose.Schema(
 
     // Notes
     // Notes
-sensitive: {
-  type: Boolean,
-  required: function () {
-    return this.type === "note";
-  },
-},
+        // Per-item protection choice — applies to note, resource, snippet,
+    // and person. When true, that item's type-specific fields (below)
+    // are NOT stored in their normal plaintext columns; instead they're
+    // bundled into one JSON object and AES-256-GCM encrypted into
+    // `protectedContentEncrypted`. When false, the plaintext columns
+    // are used directly and protectedContentEncrypted stays empty.
+    // password/secret/env/dbCredential don't use this — they're ALWAYS
+    // encrypted, by design, since they exist specifically to hold a
+    // credential; making that optional would be the "fake security"
+    // the project spec explicitly forbids.
+    sensitive: {
+      type: Boolean,
+      required: function () {
+        return ["note", "resource", "snippet", "person"].includes(this.type);
+      },
+    },
 
-noteContent: {
-  type: String,
-  select: false,
-},
+    protectedContentEncrypted: {
+      type: String,
+      select: false,
+    },
 
-noteContentEncrypted: {
-  type: String,
-  select: false,
-},
+    // Plaintext note content — used only when sensitive === false.
+    noteContent: {
+      type: String,
+      select: false,
+    },
    
 
     // Non-sensitive resource fields

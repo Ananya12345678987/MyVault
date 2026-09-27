@@ -17,6 +17,7 @@ const {
 
 const {
   createVaultItemValidator,
+  updateVaultItemValidator,
   itemIdValidator,
 } = require("../validators/vaultItemValidators");
 
@@ -27,42 +28,25 @@ router.use(requireAuth);
 
 // Vault lock/unlock
 router.post("/unlock", unlockVault);
-
 router.post("/lock", lockVault);
-
 router.get("/status", vaultStatus);
 
 // Vault items
-router.post(
-  "/items",
-  createVaultItemValidator,
-  validate,
-  createItem
-);
+router.post("/items", createVaultItemValidator, validate, createItem);
 
 router.get("/items", listItems);
 
-router.get(
-  "/items/:id",
-  itemIdValidator,
-  validate,
-  getItem
-);
+router.get("/items/:id", itemIdValidator, validate, getItem);
 
 router.put(
   "/items/:id",
   itemIdValidator,
   validate,
-  createVaultItemValidator,
+  updateVaultItemValidator,
   validate,
   updateItem
 );
 
-router.delete(
-  "/items/:id",
-  itemIdValidator,
-  validate,
-  deleteItem
-);
+router.delete("/items/:id", itemIdValidator, validate, deleteItem);
 
 module.exports = router;

@@ -1,306 +1,160 @@
 const VaultItem = require("../models/VaultItem");
+const { encryptField, decryptField } = require("../security/crypto");
 
-const {
-  encryptField,
-  decryptField,
-} = require("../security/crypto");
-
-/**
- * Maps each vault item type to the encrypted field
- * that contains its sensitive value.
- *
- * null means the item type has no sensitive value.
- */
+// Types that are ALWAYS encrypted — no user choice, because the entire
+// point of the type is to hold a credential.
 const SENSITIVE_FIELD_BY_TYPE = {
   password: "passwordEncrypted",
   secret: "secretEncrypted",
   env: "envContentEncrypted",
   dbCredential: "dbConnectionUriEncrypted",
+};
 
-  resource: null,
-  snippet: null,
-  person: null,
+// Types where the USER decides, per item, whether it's encrypted.
+const FLEXIBLE_TYPES = ["note", "resource", "snippet", "person"];
+
+// Which fields belong to each flexible type — used to bundle them into
+// one JSON blob when the user marks that item sensitive.
+const FLEXIBLE_TYPE_FIELDS = {
+  note: ["noteContent"],
+  resource: ["url", "whySaved", "whatToRemember"],
+  snippet: ["language", "code"],
+  person: ["name", "email", "phone", "company", "role"],
 };
 
 /**
- * Determines whether an item requires the master password.
- *
- * Notes are special:
- * - sensitive: true  -> requires unlock
- * - sensitive: false -> does not require unlock
- *
- * All other sensitive types keep their existing behavior.
+ * Does creating/editing this item need the vault unlocked right now?
+ *  - password/secret/env/dbCredential: always yes.
+ *  - note/resource/snippet/person: only if THIS item's sensitive flag
+ *    is (or is becoming) true.
+ *  - anything else: no.
  */
-function itemRequiresUnlock(type, noteSensitive) {
-  if (type === "note") {
-    return noteSensitive === true;
-  }
-
-  return Boolean(SENSITIVE_FIELD_BY_TYPE[type]);
+function itemRequiresUnlock(type, sensitiveFlag) {
+  if (SENSITIVE_FIELD_BY_TYPE[type]) return true;
+  if (FLEXIBLE_TYPES.includes(type)) return Boolean(sensitiveFlag);
+  return false;
 }
 
 /**
- * Create a vault item.
- *
- * Sensitive values are encrypted before being stored
- * in MongoDB.
+ * Create a vault item. Sensitive values are encrypted before storage.
  */
 async function createVaultItem({
-  userId,
-  vaultKey,
-  type,
-  title,
-
-  username,
-  password,
-  secret,
-  envContent,
-
-  dbConnectionUri,
-  dbName,
-  dbHost,
-  noteContent,
-  sensitive,
-
-  url,
-  whySaved,
-  whatToRemember,
-
-  language,
-  code,
-
-  name,
-  email,
-  phone,
-  company,
-  role,
-
-  tags,
-  data = {},
+  userId, vaultKey, type, title,
+  username, password, secret, envContent, dbConnectionUri, dbName, dbHost,
+  sensitive, noteContent, url, whySaved, whatToRemember, language, code,
+  name, email, phone, company, role, tags, data = {},
 }) {
-  const encryptedFields = {};
+  const fields = { noteContent, url, whySaved, whatToRemember, language, code, name, email, phone, company, role };
+  const doc = { userId, type, title, tags, data };
 
-  const sensitiveField = SENSITIVE_FIELD_BY_TYPE[type];
+  const alwaysSensitiveField = SENSITIVE_FIELD_BY_TYPE[type];
 
-  if (sensitiveField === "passwordEncrypted" && password) {
-    encryptedFields.passwordEncrypted = encryptField(
-      password,
-      vaultKey
-    );
+  if (alwaysSensitiveField) {
+    const rawValue = { password, secret, envContent, dbConnectionUri }[
+      {
+        passwordEncrypted: "password",
+        secretEncrypted: "secret",
+        envContentEncrypted: "envContent",
+        dbConnectionUriEncrypted: "dbConnectionUri",
+      }[alwaysSensitiveField]
+    ];
+    if (rawValue) doc[alwaysSensitiveField] = encryptField(rawValue, vaultKey);
+    if (type === "password" && username) doc.usernameEncrypted = encryptField(username, vaultKey);
+    doc.dbName = dbName;
+    doc.dbHost = dbHost;
+  } else if (FLEXIBLE_TYPES.includes(type)) {
+    doc.sensitive = sensitive;
+    if (sensitive) {
+      const payload = {};
+      for (const key of FLEXIBLE_TYPE_FIELDS[type]) {
+        if (fields[key] !== undefined) payload[key] = fields[key];
+      }
+      doc.protectedContentEncrypted = encryptField(JSON.stringify(payload), vaultKey);
+    } else {
+      for (const key of FLEXIBLE_TYPE_FIELDS[type]) {
+        if (fields[key] !== undefined) doc[key] = fields[key];
+      }
+    }
   }
 
-  if (sensitiveField === "secretEncrypted" && secret) {
-    encryptedFields.secretEncrypted = encryptField(
-      secret,
-      vaultKey
-    );
-  }
-
-  if (sensitiveField === "envContentEncrypted" && envContent) {
-    encryptedFields.envContentEncrypted = encryptField(
-      envContent,
-      vaultKey
-    );
-  }
-
-  if (
-    sensitiveField === "dbConnectionUriEncrypted" &&
-    dbConnectionUri
-  ) {
-    encryptedFields.dbConnectionUriEncrypted = encryptField(
-      dbConnectionUri,
-      vaultKey
-    );
-  }
-
-  if (type === "note" && noteContent !== undefined) {
-  if (sensitive === true) {
-    encryptedFields.noteContentEncrypted = encryptField(
-      noteContent,
-      vaultKey
-    );
-  } else {
-    encryptedFields.noteContent = noteContent;
-  }
-}  
-
-  // Username is only relevant to password/login items.
-  if (type === "password" && username) {
-    encryptedFields.usernameEncrypted = encryptField(
-      username,
-      vaultKey
-    );
-  }
-
-  const item = new VaultItem({
-    userId,
-    type,
-    title,
-
-    sensitive,
-
-    ...encryptedFields,
-
-    dbName,
-    dbHost,
-
-    url,
-    whySaved,
-    whatToRemember,
-
-    language,
-    code,
-
-    name,
-    email,
-    phone,
-    company,
-    role,
-
-    tags,
-    data,
-  });
-
+  const item = new VaultItem(doc);
   return item.save();
 }
 
 /**
- * Get vault items without revealing sensitive values.
- *
- * This can safely be used while the vault is locked.
+ * List items without revealing sensitive values — safe while locked.
  */
 async function listVaultItems(userId) {
-  return VaultItem.find({
-    userId,
-    isDeleted: false,
-  })
+  return VaultItem.find({ userId, isDeleted: false })
     .select(
-  "type title sensitive dbName dbHost url whySaved whatToRemember language code name email phone company role tags data createdAt updatedAt"
-)
+      "type title sensitive dbName dbHost url whySaved whatToRemember language code name email phone company role tags data createdAt updatedAt"
+    )
     .sort({ updatedAt: -1 });
 }
 
 /**
- * Get one vault item and decrypt its sensitive value.
+ * Get one vault item.
+ *
+ * THE UNLOCK CHECK LIVES HERE — right after loading the item, because
+ * only now do we know its real type and its real `sensitive` flag.
+ * The controller passes whatever key it has (possibly null); this
+ * function throws a 423 if that key turns out to actually be needed.
  */
 async function getVaultItem(userId, itemId, vaultKey) {
-  const item = await VaultItem.findOne({
-    _id: itemId,
-    userId,
-    isDeleted: false,
-  }).select(
-    "+usernameEncrypted " +
-      "+passwordEncrypted " +
-      "+secretEncrypted " +
-      "+envContentEncrypted " +
-      "+dbConnectionUriEncrypted " +
-      "+noteContent " +
-      "+noteContentEncrypted"
+  const item = await VaultItem.findOne({ _id: itemId, userId, isDeleted: false }).select(
+    "+usernameEncrypted +passwordEncrypted +secretEncrypted +envContentEncrypted " +
+      "+dbConnectionUriEncrypted +noteContent +protectedContentEncrypted"
   );
 
+  if (!item) return null;
 
-
-  if (!item) {
-    return null;
+  // <-- THE GUARD -->
+  if (itemRequiresUnlock(item.type, item.sensitive) && !vaultKey) {
+    const err = new Error("This item is protected — unlock your vault to view it.");
+    err.status = 423;
+    throw err;
   }
 
   const result = {
     id: item._id,
     type: item.type,
     title: item.title,
-
-    sensitive: item.type === "note"
-    ? item.sensitive
-    : null,
-
+    sensitive: FLEXIBLE_TYPES.includes(item.type) ? item.sensitive : null,
     username: null,
     value: null,
-
     dbName: item.dbName || null,
     dbHost: item.dbHost || null,
-
-    url: item.url || null,
-    whySaved: item.whySaved || null,
-    whatToRemember: item.whatToRemember || null,
-
-    language: item.language || null,
-    code: item.code || null,
-
-    name: item.name || null,
-    email: item.email || null,
-    phone: item.phone || null,
-    company: item.company || null,
-    role: item.role || null,
-
     tags: item.tags || [],
     data: item.data,
-
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
+    url: null, whySaved: null, whatToRemember: null,
+    language: null, code: null,
+    name: null, email: null, phone: null, company: null, role: null,
   };
 
   if (item.usernameEncrypted) {
-    result.username = decryptField(
-      item.usernameEncrypted,
-      vaultKey
-    );
+    result.username = decryptField(item.usernameEncrypted, vaultKey);
   }
 
-  switch (item.type) {
-    case "password":
-      if (item.passwordEncrypted) {
-        result.value = decryptField(
-          item.passwordEncrypted,
-          vaultKey
-        );
-      }
-      break;
+  const alwaysSensitiveField = SENSITIVE_FIELD_BY_TYPE[item.type];
+  if (alwaysSensitiveField && item[alwaysSensitiveField]) {
+    result.value = decryptField(item[alwaysSensitiveField], vaultKey);
+  }
 
-    case "secret":
-      if (item.secretEncrypted) {
-        result.value = decryptField(
-          item.secretEncrypted,
-          vaultKey
-        );
+  if (FLEXIBLE_TYPES.includes(item.type)) {
+    if (item.sensitive) {
+      if (item.protectedContentEncrypted) {
+        const payload = JSON.parse(decryptField(item.protectedContentEncrypted, vaultKey));
+        Object.assign(result, payload);
+        if (item.type === "note") result.value = payload.noteContent ?? null;
       }
-      break;
-
-    case "env":
-      if (item.envContentEncrypted) {
-        result.value = decryptField(
-          item.envContentEncrypted,
-          vaultKey
-        );
+    } else {
+      for (const key of FLEXIBLE_TYPE_FIELDS[item.type]) {
+        result[key] = item[key] ?? null;
       }
-      break;
-
-    case "dbCredential":
-      if (item.dbConnectionUriEncrypted) {
-        result.value = decryptField(
-          item.dbConnectionUriEncrypted,
-          vaultKey
-        );
-      }
-      break;
-
-    case "note":
-  if (item.sensitive === true) {
-    if (item.noteContentEncrypted) {
-      result.value = decryptField(
-        item.noteContentEncrypted,
-        vaultKey
-      );
+      if (item.type === "note") result.value = item.noteContent ?? null;
     }
-  } else {
-    result.value = item.noteContent || null;
-  }
-  break;
-
-    case "resource":
-    case "snippet":
-    case "person":
-      // These types do not contain encrypted sensitive values.
-      break;
   }
 
   return result;
@@ -308,178 +162,90 @@ async function getVaultItem(userId, itemId, vaultKey) {
 
 /**
  * Update a vault item.
+ *
+ * SAME PRINCIPLE: the guard lives HERE, right after loading the item.
+ * Needs a key if the item IS currently sensitive (to decrypt/re-save)
+ * OR if this request is turning it sensitive (to encrypt it).
  */
 async function updateVaultItem({
-  userId,
-  itemId,
-  vaultKey,
-  type,
-  title,
-
-  username,
-  password,
-  secret,
-  envContent,
-  dbConnectionUri,
-  noteContent,
-  sensitive,
-
-  dbName,
-  dbHost,
-
-  url,
-  whySaved,
-  whatToRemember,
-
-  language,
-  code,
-
-  name,
-  email,
-  phone,
-  company,
-  role,
-
-  tags,
-  data,
+  userId, itemId, vaultKey, title,
+  username, password, secret, envContent, dbConnectionUri, dbName, dbHost,
+  sensitive, noteContent, url, whySaved, whatToRemember, language, code,
+  name, email, phone, company, role, tags, data,
 }) {
-  const item = await VaultItem.findOne({
-    _id: itemId,
-    userId,
-    isDeleted: false,
-  }).select(
-    "+usernameEncrypted " +
-      "+passwordEncrypted " +
-      "+secretEncrypted " +
-      "+envContentEncrypted " +
-      "+dbConnectionUriEncrypted " +
-      "+noteContent " +
-      "+noteContentEncrypted "
+  const item = await VaultItem.findOne({ _id: itemId, userId, isDeleted: false }).select(
+    "+usernameEncrypted +passwordEncrypted +secretEncrypted +envContentEncrypted " +
+      "+dbConnectionUriEncrypted +noteContent +protectedContentEncrypted"
+  );
+  if (!item) return null;
 
-    );
-
-  if (!item) {
-    return null;
+  // <-- THE GUARD -->
+  const willBeSensitive = sensitive !== undefined ? sensitive : item.sensitive;
+  if (itemRequiresUnlock(item.type, item.sensitive || willBeSensitive) && !vaultKey) {
+    const err = new Error("This item is protected — unlock your vault to edit it.");
+    err.status = 423;
+    throw err;
   }
 
-  if (sensitive !== undefined) {
-  item.sensitive = sensitive;
-}
+  if (title !== undefined) item.title = title;
+  if (tags !== undefined) item.tags = tags;
+  if (data !== undefined) item.data = data;
+  if (dbName !== undefined) item.dbName = dbName;
+  if (dbHost !== undefined) item.dbHost = dbHost;
 
-  if (type !== undefined) {
-    item.type = type;
-  }
+  const alwaysSensitiveField = SENSITIVE_FIELD_BY_TYPE[item.type];
+  if (alwaysSensitiveField) {
+    const rawValue = { password, secret, envContent, dbConnectionUri }[
+      {
+        passwordEncrypted: "password",
+        secretEncrypted: "secret",
+        envContentEncrypted: "envContent",
+        dbConnectionUriEncrypted: "dbConnectionUri",
+      }[alwaysSensitiveField]
+    ];
+    if (rawValue !== undefined) {
+      item[alwaysSensitiveField] = rawValue ? encryptField(rawValue, vaultKey) : undefined;
+    }
+    if (username !== undefined) {
+      item.usernameEncrypted = username ? encryptField(username, vaultKey) : undefined;
+    }
+  } else if (FLEXIBLE_TYPES.includes(item.type)) {
+    const wasSensitive = item.sensitive;
+    const newFieldValues = { noteContent, url, whySaved, whatToRemember, language, code, name, email, phone, company, role };
 
-  if (title !== undefined) {
-    item.title = title;
-  }
-
-  if (username !== undefined) {
-    item.usernameEncrypted =
-      username
-        ? encryptField(username, vaultKey)
-        : undefined;
-  }
-
-  if (password !== undefined) {
-    item.passwordEncrypted =
-      password
-        ? encryptField(password, vaultKey)
-        : undefined;
-  }
-
-  if (secret !== undefined) {
-    item.secretEncrypted =
-      secret
-        ? encryptField(secret, vaultKey)
-        : undefined;
-  }
-
-  if (envContent !== undefined) {
-    item.envContentEncrypted =
-      envContent
-        ? encryptField(envContent, vaultKey)
-        : undefined;
-  }
-
-  if (dbConnectionUri !== undefined) {
-    item.dbConnectionUriEncrypted =
-      dbConnectionUri
-        ? encryptField(dbConnectionUri, vaultKey)
-        : undefined;
-  }
-
-  if (noteContent !== undefined) {
-  if (item.type === "note" && item.sensitive === true) {
-    item.noteContentEncrypted = noteContent
-      ? encryptField(noteContent, vaultKey)
-      : undefined;
-
-    item.noteContent = undefined;
-  } else if (item.type === "note") {
-    item.noteContent = noteContent;
-    item.noteContentEncrypted = undefined;
-  }
-}
-
-  if (dbName !== undefined) {
-    item.dbName = dbName;
-  }
-
-  if (dbHost !== undefined) {
-    item.dbHost = dbHost;
-  }
-
-  if (url !== undefined) {
-    item.url = url;
-  }
-
-  if (whySaved !== undefined) {
-    item.whySaved = whySaved;
-  }
-
-  if (whatToRemember !== undefined) {
-    item.whatToRemember = whatToRemember;
-  }
-
-  if (language !== undefined) {
-    item.language = language;
-  }
-
-  if (code !== undefined) {
-    item.code = code;
-  }
-
-  if (name !== undefined) {
-    item.name = name;
-  }
-
-  if (email !== undefined) {
-    item.email = email;
-  }
-
-  if (phone !== undefined) {
-    item.phone = phone;
-  }
-
-  if (company !== undefined) {
-    item.company = company;
-  }
-
-  if (role !== undefined) {
-    item.role = role;
-  }
-
-  if (tags !== undefined) {
-    item.tags = tags;
-  }
-
-  if (data !== undefined) {
-    item.data = data;
+    if (willBeSensitive) {
+      let currentPayload = {};
+      if (wasSensitive && item.protectedContentEncrypted) {
+        currentPayload = JSON.parse(decryptField(item.protectedContentEncrypted, vaultKey));
+      } else if (!wasSensitive) {
+        for (const k of FLEXIBLE_TYPE_FIELDS[item.type]) {
+          if (item[k] !== undefined) currentPayload[k] = item[k];
+        }
+      }
+      for (const k of FLEXIBLE_TYPE_FIELDS[item.type]) {
+        if (newFieldValues[k] !== undefined) currentPayload[k] = newFieldValues[k];
+      }
+      item.protectedContentEncrypted = encryptField(JSON.stringify(currentPayload), vaultKey);
+      for (const k of FLEXIBLE_TYPE_FIELDS[item.type]) item[k] = undefined;
+    } else {
+      let currentPayload = {};
+      if (wasSensitive && item.protectedContentEncrypted) {
+        currentPayload = JSON.parse(decryptField(item.protectedContentEncrypted, vaultKey));
+      } else if (!wasSensitive) {
+        for (const k of FLEXIBLE_TYPE_FIELDS[item.type]) {
+          if (item[k] !== undefined) currentPayload[k] = item[k];
+        }
+      }
+      for (const k of FLEXIBLE_TYPE_FIELDS[item.type]) {
+        if (newFieldValues[k] !== undefined) currentPayload[k] = newFieldValues[k];
+      }
+      for (const k of FLEXIBLE_TYPE_FIELDS[item.type]) item[k] = currentPayload[k];
+      item.protectedContentEncrypted = undefined;
+    }
+    item.sensitive = willBeSensitive;
   }
 
   await item.save();
-
   return item;
 }
 
@@ -488,21 +254,10 @@ async function updateVaultItem({
  */
 async function deleteVaultItem(userId, itemId) {
   const item = await VaultItem.findOneAndUpdate(
-    {
-      _id: itemId,
-      userId,
-      isDeleted: false,
-    },
-    {
-      $set: {
-        isDeleted: true,
-      },
-    },
-    {
-      new: true,
-    }
+    { _id: itemId, userId, isDeleted: false },
+    { $set: { isDeleted: true } },
+    { new: true }
   );
-
   return item;
 }
 
@@ -513,5 +268,4 @@ module.exports = {
   updateVaultItem,
   deleteVaultItem,
   itemRequiresUnlock,
-
 };

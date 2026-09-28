@@ -3,8 +3,8 @@ import { ArrowRight, Eye, EyeOff } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
 
-function Login() {
-  const { login, error, clearError } = useAuth();
+function Login({ onSwitchToRegister }) {
+const { login, error, clearError } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -186,11 +186,12 @@ function Login() {
 
             <div className="mt-8 border-t border-border pt-6 text-center text-sm text-text-muted">
               Don't have an account?{" "}
-              <button
+                          <button
                 type="button"
+                onClick={onSwitchToRegister}
                 className="font-medium text-vault-green transition-colors hover:text-vault-green-hover"
               >
-                Create one
+                Create one  
               </button>
             </div>
 

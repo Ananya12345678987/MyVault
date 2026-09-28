@@ -1,4 +1,8 @@
+import { useState } from "react";
+
 import Login from "./pages/Login";
+import Register from "./pages/Register";
+
 import UnlockVault from "./pages/UnlockVault";
 import Dashboard from "./pages/Dashboard";
 
@@ -6,6 +10,8 @@ import { useAuth } from "./context/AuthContext";
 
 function App() {
   const { user, vaultUnlocked, loading } = useAuth();
+  const [authView, setAuthView] = useState("login");
+  
 
   if (loading) {
     return (
@@ -27,8 +33,12 @@ function App() {
    * Layer 1:
    * No account session → Login.
    */
-  if (!user) {
-    return <Login />;
+    if (!user) {
+    return authView === "register" ? (
+      <Register onSwitchToLogin={() => setAuthView("login")} />
+    ) : (
+      <Login onSwitchToRegister={() => setAuthView("register")} />
+    );
   }
 
   /*

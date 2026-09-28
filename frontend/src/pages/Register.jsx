@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import VaultMark from "../components/VaultMark.jsx";
 
-export default function Register() {
-  const { registerUser } = useAuth();
-  const navigate = useNavigate();
+export default function Register({ onSwitchToLogin }) {
+const { register } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [masterPassword, setMasterPassword] = useState("");
@@ -17,8 +15,7 @@ export default function Register() {
     setError("");
     setSubmitting(true);
     try {
-      await registerUser(email, password, masterPassword);
-      navigate("/unlock");
+      await register({email, password, masterPassword});
     } catch (err) {
       setError(err.message);
     } finally {
@@ -97,9 +94,13 @@ export default function Register() {
 
         <p className="text-center text-sm text-text-muted mt-6">
           Already have an account?{" "}
-          <Link to="/login" className="text-vault hover:underline">
+                  <button
+            type="button"
+            onClick={onSwitchToLogin}
+            className="text-vault-green hover:underline"
+          >
             Sign in
-          </Link>
+          </button>
         </p>
       </div>
     </div>

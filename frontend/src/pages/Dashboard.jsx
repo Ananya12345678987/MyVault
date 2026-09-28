@@ -59,7 +59,7 @@ function subtitleFor(item) {
 }
 
 function Dashboard() {
-  const { user, lock, logoutUser } = useAuth();
+  const { user, lock, logout } = useAuth();
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -111,7 +111,7 @@ function Dashboard() {
 
   async function handleLogout() {
     try {
-      await logoutUser();
+      await logout();
     } catch {
       // Local auth state is cleared by AuthContext.
     }

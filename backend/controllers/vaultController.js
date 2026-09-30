@@ -105,7 +105,7 @@ async function createItem(req, res, next) {
       url, whySaved, whatToRemember,
       language, code,
       name, email, phone, company, role,
-      tags, data,
+      tags, notes, data,
     } = req.body;
 
     if (!type || !title) {
@@ -241,13 +241,16 @@ async function updateItem(req, res, next) {
 
 async function deleteItem(req, res, next) {
   try {
-    const item = await deleteVaultItem(req.userId, req.params.id);
+    const vaultSessionId = req.cookies[VAULT_SESSION_COOKIE];
+    const vaultKey = getVaultKey(vaultSessionId, req.userId); // may be null — that's fine
+
+    const item = await deleteVaultItem(req.userId, req.params.id, vaultKey);
     if (!item) {
       return res.status(404).json({ error: "Vault item not found." });
     }
     return res.json({ message: "Vault item deleted." });
   } catch (err) {
-    next(err);
+    next(err); // a locked-item 423 thrown inside deleteVaultItem lands here too
   }
 }
 

@@ -15,7 +15,9 @@ const VALID_TYPES = [
 // protected. Kept as one shared list so create/update can't drift
 // out of sync with each other or with itemRequiresUnlock() in the
 // service layer.
-const FLEXIBLE_TYPES = ["note", "resource", "snippet", "person"];
+// Every type requires the sensitivity choice now — no exceptions.
+const FLEXIBLE_TYPES = VALID_TYPES;
+
 
 const createVaultItemValidator = [
   body("type")
@@ -65,6 +67,7 @@ const createVaultItemValidator = [
   body("role").optional().isString().withMessage("Role must be a string"),
   body("tags").optional().isArray().withMessage("Tags must be an array"),
   body("tags.*").optional().isString().withMessage("Each tag must be a string"),
+  body("notes").optional().isString().isLength({ max: 5000 }).withMessage("Notes must be under 5000 characters"),
   body("data").optional().isObject().withMessage("Data must be an object"),
 ];
 

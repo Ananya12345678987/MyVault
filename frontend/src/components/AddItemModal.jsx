@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import * as api from "../lib/api";
+import UnlockVault from "../pages/UnlockVault";
 
 const TYPE_OPTIONS = [
   { value: "password", label: "Password" },
@@ -15,12 +16,15 @@ const TYPE_OPTIONS = [
 
 // These 4 types require the user to explicitly choose protection level.
 // The other 4 are ALWAYS encrypted — no toggle shown for them at all.
-const FLEXIBLE_TYPES = ["note", "resource", "snippet", "person"];
+// Every type gets the toggle now.
+const FLEXIBLE_TYPES = TYPE_OPTIONS.map((t) => t.value);
+
 
 const EMPTY_FORM = {
   type: "note",
   title: "",
   sensitive: false,
+  notes: "",
   username: "",
   password: "",
   secret: "",
@@ -46,7 +50,7 @@ export default function AddItemModal({ onClose, onCreated }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
+  const [needsUnlock, setNeedsUnlock] = useState(false);
   const isFlexible = FLEXIBLE_TYPES.includes(form.type);
 
   function update(field, value) {
@@ -59,7 +63,7 @@ export default function AddItemModal({ onClose, onCreated }) {
       .map((t) => t.trim())
       .filter(Boolean);
 
-    const payload = { type: form.type, title: form.title, tags };
+        const payload = { type: form.type, title: form.title, tags, notes: form.notes };
 
     if (isFlexible) payload.sensitive = form.sensitive;
 
@@ -103,19 +107,19 @@ export default function AddItemModal({ onClose, onCreated }) {
     return payload;
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+    async function attemptSave() {
     setError("");
     setSubmitting(true);
     try {
-        const result = await api.createVaultItem(buildPayload());
-        onCreated(result.item);
+      const result = await api.createVaultItem(buildPayload());
+      onCreated(result.item);
       onClose();
     } catch (err) {
-      // A 423 here means: this type needs the vault unlocked and it
-      // currently isn't. Surface that plainly rather than a generic error.
       if (err.status === 423) {
-        setError("This item needs your vault unlocked to save. Unlock it, then try again.");
+        // Don't just show an error — open the unlock popup right here,
+        // over this form, so the person can finish the action in one
+        // flow instead of hunting for a separate unlock screen.
+        setNeedsUnlock(true);
       } else {
         setError(err.message);
       }
@@ -123,6 +127,17 @@ export default function AddItemModal({ onClose, onCreated }) {
       setSubmitting(false);
     }
   }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    attemptSave();
+  }
+
+  function handleUnlocked() {
+    setNeedsUnlock(false);
+    attemptSave(); // retry the exact same save now that the vault is open
+  }
+
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
@@ -266,9 +281,14 @@ export default function AddItemModal({ onClose, onCreated }) {
             </>
           )}
 
-          <div>
+                    <div>
             <label className="block text-sm font-medium mb-1.5">Tags (comma separated)</label>
             <input value={form.tagsInput} onChange={(e) => update("tagsInput", e.target.value)} className="input-field" placeholder="work, urgent" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Notes <span className="text-text-muted font-normal">(optional)</span></label>
+            <textarea value={form.notes} onChange={(e) => update("notes", e.target.value)} className="input-field" rows={2} placeholder="Any extra context…" />
           </div>
 
           {/* --- The sensitivity toggle — only for the 4 flexible types --- */}
@@ -293,12 +313,7 @@ export default function AddItemModal({ onClose, onCreated }) {
             </div>
           )}
 
-          {!isFlexible && (
-            <p className="text-xs text-text-muted">
-              This item type is always encrypted — your vault must be unlocked to save it.
-            </p>
-          )}
-
+          
           {error && <p className="text-danger text-sm">{error}</p>}
 
           <div className="flex gap-3 pt-2">
@@ -307,8 +322,12 @@ export default function AddItemModal({ onClose, onCreated }) {
               {submitting ? "Saving…" : "Save item"}
             </button>
           </div>
-        </form>
+                </form>
       </div>
+
+      {needsUnlock && (
+        <UnlockVault onUnlocked={handleUnlocked} onCancel={() => setNeedsUnlock(false)} />
+      )}
     </div>
   );
 }

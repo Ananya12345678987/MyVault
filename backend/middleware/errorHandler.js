@@ -8,6 +8,16 @@
 function errorHandler(err, req, res, next) {
   console.error(`[error] ${req.method} ${req.path}:`, err.message);
 
+  // Zod validation errors have no .status and a JSON-array message —
+  // turn the first issue into one readable sentence instead of
+  // leaking the raw error shape to the client.
+  if (err.name === "ZodError" && Array.isArray(err.issues)) {
+    const first = err.issues[0];
+    return res.status(400).json({
+      error: first?.message || "Invalid input.",
+    });
+  }
+
   const status = err.status || 500;
   const isProd = process.env.NODE_ENV === "production";
 

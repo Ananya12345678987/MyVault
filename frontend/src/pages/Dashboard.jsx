@@ -14,11 +14,14 @@ import {
   LogOut,
   ChevronRight,
   Link2,
+  Menu,
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
 import * as api from "../lib/api";
 import AddItemModal from "../components/AddItemModal";
+import PasswordItemForm from "../components/PasswordItemForm";
+import ItemDetailModal from "../components/ItemDetailModal";
 
 const categories = [
   { label: "All Items", type: "all", icon: Shield },
@@ -64,9 +67,13 @@ function Dashboard() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [openItemId, setOpenItemId] = useState(null);
+
 
   async function fetchItems() {
     setLoading(true);
@@ -127,12 +134,34 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-bg text-text">
-      {showAddModal && (
+               {showAddModal && (
         <AddItemModal onClose={() => setShowAddModal(false)} onCreated={handleItemCreated} />
       )}
 
+      {showPasswordForm && (
+        <PasswordItemForm onClose={() => setShowPasswordForm(false)} onCreated={handleItemCreated} />
+      )}   
+
+      {openItemId && (
+        <ItemDetailModal
+          itemId={openItemId}
+          onClose={() => setOpenItemId(null)}
+          onUpdated={() => fetchItems()}
+          onDeleted={() => {
+            setOpenItemId(null);
+            fetchItems();
+          }}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 hidden h-screen w-64 border-r border-border bg-bg lg:flex lg:flex-col">
+      {mobileNavOpen && (
+  <div
+    className="fixed inset-0 z-30 bg-black/60 lg:hidden"
+    onClick={() => setMobileNavOpen(false)}
+  />
+)}
+<aside className={`fixed left-0 top-0 z-40 h-screen w-64 flex flex-col border-r border-border bg-bg transition-transform duration-200 lg:translate-x-0 ${mobileNavOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex h-20 items-center border-b border-border px-6">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center border border-vault-green">
@@ -161,7 +190,10 @@ function Dashboard() {
                 <button
                   key={category.type}
                   type="button"
-                  onClick={() => setActiveCategory(category.type)}
+                 onClick={() => {
+  setActiveCategory(category.type);
+  setMobileNavOpen(false);
+}} 
                   className={`group flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${
                     isActive ? "bg-surface-alt text-text" : "text-text-muted hover:bg-surface hover:text-text"
                   }`}
@@ -208,10 +240,17 @@ function Dashboard() {
       </aside>
 
       {/* Main */}
-      <main className="lg:pl-64">
+            <main className="lg:pl-64 w-full">
         <header className="sticky top-0 z-10 flex h-20 items-center justify-between border-b border-border bg-bg/95 px-6 backdrop-blur lg:px-10">
           <div className="flex items-center gap-3">
-            <div className="relative hidden w-72 md:block">
+            <button
+  type="button"
+  onClick={() => setMobileNavOpen(true)}
+  className="mr-1 text-text-muted hover:text-text lg:hidden"
+>
+  <Menu size={20} />
+</button>
+<div className="relative w-full max-w-xs md:w-72">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
               <input
                 type="search"
@@ -247,7 +286,7 @@ function Dashboard() {
               </p>
             </div>
 
-            <button type="button" onClick={() => setShowAddModal(true)} className="btn-primary gap-2">
+            <button type="button" onClick={() => (activeCategory === "password" ? setShowPasswordForm(true) : setShowAddModal(true))} className="btn-primary flex items-center gap-2">
               <Plus size={17} />
               New item
             </button>
@@ -284,8 +323,12 @@ function Dashboard() {
               {filteredItems.map((item) => {
                 const Icon = ICON_BY_TYPE[item.type] || Shield;
                 return (
-                  <div key={item._id} className="border border-border bg-surface p-4 hover:border-vault-green transition-colors cursor-pointer">
-                    <div className="flex items-start gap-3">
+                                    <div
+                    key={item._id}
+                    onClick={() => setOpenItemId(item._id)}
+                    className="border border-border bg-surface p-4 hover:border-vault-green transition-colors cursor-pointer"
+                  >
+                      <div className="flex items-start gap-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-border bg-surface-alt">
                         <Icon size={16} className="text-vault-green" />
                       </div>

@@ -3,13 +3,12 @@ import { useState } from "react";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
-import UnlockVault from "./pages/UnlockVault";
 import Dashboard from "./pages/Dashboard";
 
 import { useAuth } from "./context/AuthContext";
 
 function App() {
-  const { user, vaultUnlocked, loading } = useAuth();
+  const { user, loading } = useAuth();
   const [authView, setAuthView] = useState("login");
   
 
@@ -41,21 +40,11 @@ function App() {
     );
   }
 
-  /*
-   * Layer 2:
-   * Account exists but vault is locked.
-   *
-   * We'll replace this with UnlockVault.jsx next.
-   */
-  if (!vaultUnlocked) {
-  return <UnlockVault />;
-}
-
-  /*
-   * Layer 3:
-   * Account authenticated + vault unlocked.
-   *
-   * Dashboard will replace this next.
+    /*
+   * Account authenticated — go straight to the dashboard. The vault
+   * unlock step is no longer a full-page gate; it now appears as an
+   * inline popup only at the moment an action actually needs it
+   * (see AddItemModal — item detail view will do the same later).
    */
   return <Dashboard />;
 }

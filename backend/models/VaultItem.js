@@ -32,9 +32,27 @@ const vaultItemSchema = new mongoose.Schema(
     },
 
     // Password / login fields
-    usernameEncrypted: {
+        usernameEncrypted: {
       type: String,
       select: false,
+    },
+
+    // Plaintext username — password items' username is always visible
+    // metadata, never part of the encrypted payload, regardless of
+    // whether the password itself is protected.
+        username: {
+      type: String,
+      trim: true,
+      maxlength: 200,
+    },
+
+    // The "Key" in the Password form — the site/service name, e.g.
+    // "reddit.com". Always plaintext metadata, like username, so you
+    // can browse and tell entries apart even when locked.
+    website: {
+      type: String,
+      trim: true,
+      maxlength: 300,
     },
 
     passwordEncrypted: {
@@ -55,10 +73,19 @@ const vaultItemSchema = new mongoose.Schema(
     },
 
     // Database credentials
-    dbConnectionUriEncrypted: {
+        dbConnectionUriEncrypted: {
       type: String,
       select: false,
     },
+
+    // Plaintext counterparts — used when the user chooses NOT to
+    // protect this item. Mirrors the note/resource/snippet/person
+    // pattern: exactly one of the plain/encrypted pair holds data at
+    // any time, decided per-item by `sensitive`.
+    password: { type: String, trim: true },
+    secret: { type: String, trim: true },
+    envContent: { type: String },
+    dbConnectionUri: { type: String, trim: true },
 
     dbName: {
       type: String,
@@ -82,11 +109,10 @@ const vaultItemSchema = new mongoose.Schema(
     // encrypted, by design, since they exist specifically to hold a
     // credential; making that optional would be the "fake security"
     // the project spec explicitly forbids.
+        // Every type now carries this choice — not just the original 4.
     sensitive: {
       type: Boolean,
-      required: function () {
-        return ["note", "resource", "snippet", "person"].includes(this.type);
-      },
+      required: true,
     },
 
     protectedContentEncrypted: {
@@ -153,10 +179,18 @@ const vaultItemSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // Common metadata
+        // Common metadata
     tags: {
       type: [String],
       default: [],
+    },
+
+    // Free-text notes — available on every type, separate from each
+    // type's main content (e.g. a Password's notes vs. its password).
+    notes: {
+      type: String,
+      trim: true,
+      maxlength: 5000,
     },
 
     data: {

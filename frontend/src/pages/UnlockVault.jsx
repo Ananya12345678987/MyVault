@@ -3,8 +3,8 @@ import { Eye, EyeOff, LockKeyhole, ArrowRight } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
 
-function UnlockVault() {
-  const { user, unlock, error, clearError } = useAuth();
+function UnlockVault({ onUnlocked, onCancel }) {
+const { user, unlock, error, clearError } = useAuth();
 
   const [masterPassword, setMasterPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -16,9 +16,10 @@ function UnlockVault() {
     clearError();
     setSubmitting(true);
 
-    try {
+        try {
       await unlock(masterPassword);
       setMasterPassword("");
+      onUnlocked?.();
     } catch {
       // AuthContext stores the error.
     } finally {
@@ -26,10 +27,9 @@ function UnlockVault() {
     }
   }
 
-  return (
-    <main className="min-h-screen bg-bg text-text">
-      <div className="flex min-h-screen items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md">
+    return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+      <div className="w-full max-w-md rounded-sm border border-border bg-surface p-8">
 
           {/* Brand */}
           <div className="mb-12 flex items-center justify-center gap-3">
@@ -110,16 +110,18 @@ function UnlockVault() {
               </div>
             )}
 
-            {/* Unlock */}
-            <button
-              type="submit"
-              disabled={submitting}
-              className="btn-primary w-full gap-2"
-            >
-              {submitting ? "Unlocking..." : "Unlock vault"}
-
-              {!submitting && <ArrowRight size={18} />}
-            </button>
+                      {/* Unlock / Cancel */}
+            <div className="flex gap-3">
+              {onCancel && (
+                <button type="button" onClick={onCancel} className="btn-secondary flex-1">
+                  Cancel
+                </button>
+              )}
+              <button type="submit" disabled={submitting} className="btn-primary flex-1 gap-2">
+                {submitting ? "Unlocking..." : "Unlock vault"}
+                {!submitting && <ArrowRight size={18} />}
+              </button>
+                        </div>
           </form>
 
           {/* Account information */}
@@ -140,7 +142,6 @@ function UnlockVault() {
 
         </div>
       </div>
-    </main>
   );
 }
 

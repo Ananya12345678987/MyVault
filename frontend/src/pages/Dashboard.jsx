@@ -18,6 +18,8 @@ import TrashTable from "../components/TrashTable";
 import AddMenu from "../components/AddMenu";
 import CategoryChips from "../components/CategoryChips";
 import UnlockVault from "./UnlockVault";
+import ItemEditorModal from "../components/ItemEditorModal";
+import { hasEditor } from "../editors";
 import { CATEGORIES, VIEW_TYPES, emptyTitleFor, emptyHintFor } from "../lib/categories";
 import ItemDetailModal from "../components/ItemDetailModal";
 
@@ -35,6 +37,7 @@ function Dashboard() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all"); // chips under the search box
   const [addType, setAddType] = useState(null);
+  const [editor, setEditor] = useState(null); // { mode: "create" | "edit", type, id }
   const [unlockRequest, setUnlockRequest] = useState(null);
   const [actionError, setActionError] = useState("");
 
@@ -116,11 +119,23 @@ function Dashboard() {
   }
 
   function openAdd(type) {
+    if (hasEditor(type)) {
+      setEditor({ mode: "create", type });
+      return;
+    }
     setAddType(type);
     setShowAddModal(true);
   }
 
   const refresh = () => fetchItems({ silent: true });
+
+  // A category with its own editor opens in it; the rest still use the
+  // older detail view until their editors exist.
+  function openItem(id) {
+    const item = items.find((i) => i._id === id);
+    if (item && hasEditor(item.type)) setEditor({ mode: "edit", type: item.type, id });
+    else setOpenItemId(id);
+  }
 
   const toggleStar = (item) =>
     runWithUnlock(async () => {
@@ -197,6 +212,20 @@ function Dashboard() {
             const retry = unlockRequest.retry;
             setUnlockRequest(null);
             if (retry) runWithUnlock(retry);
+          }}
+        />
+      )}
+
+      {editor && (
+        <ItemEditorModal
+          key={editor.id || `new-${editor.type}`}
+          mode={editor.mode}
+          type={editor.type}
+          itemId={editor.id}
+          onClose={() => setEditor(null)}
+          onSaved={() => {
+            setEditor(null);
+            refresh();
           }}
         />
       )}
@@ -385,7 +414,7 @@ function Dashboard() {
                 <ItemCard
                   key={item._id}
                   item={item}
-                  onOpen={setOpenItemId}
+                  onOpen={openItem}
                   onToggleStar={toggleStar}
                   onArchive={archiveItem}
                   onUnarchive={unarchiveItem}

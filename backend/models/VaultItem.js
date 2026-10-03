@@ -1,5 +1,29 @@
 const mongoose = require("mongoose");
 
+// One entry in a key/value item (Password, API Key, Environment, Database)
+// or in a Person's free-form extra info. For protected items only
+// { id, key, protected } is stored here; the value and info live inside
+// the encrypted blob (see services/vaultFields.js).
+const fieldSchema = new mongoose.Schema(
+  {
+    id: { type: String, required: true },
+    key: { type: String, required: true, trim: true, maxlength: 200 },
+    protected: { type: Boolean, default: false },
+    value: { type: String },
+    info: {
+      type: [
+        {
+          _id: false,
+          label: { type: String, trim: true, maxlength: 200 },
+          text: { type: String, maxlength: 2000 },
+        },
+      ],
+      default: undefined,
+    },
+  },
+  { _id: false }
+);
+
 const vaultItemSchema = new mongoose.Schema(
   {
     userId: {
@@ -198,8 +222,43 @@ const vaultItemSchema = new mongoose.Schema(
       default: {},
     },
 
+    // Dynamic key/value fields (see fieldSchema above).
+    fields: { type: [fieldSchema], default: [] },
+
+    // 0 = legacy item (username/password/secret/envContent/dbConnectionUri
+    // columns), 2 = item saved through the new editors (uses `fields`).
+    fieldsVersion: { type: Number, default: 0 },
+
+    // People only: "myself" (one special profile), "family" or "other".
+    personGroup: {
+      type: String,
+      enum: ["myself", "family", "other"],
+      default: undefined,
+    },
+
+    isStarred: { type: Boolean, default: false },
+    isArchived: { type: Boolean, default: false },
+    deletedAt: { type: Date },
+
+    // Reserved for encrypted documents in a later version. Nothing reads
+    // or writes this yet; it only exists so adding file storage later
+    // doesn't need a schema rewrite.
+    attachments: {
+      type: [
+        {
+          _id: false,
+          name: { type: String, trim: true, maxlength: 255 },
+          mimeType: { type: String, maxlength: 100 },
+          size: { type: Number },
+          storageRef: { type: String },
+          metaEncrypted: { type: String },
+        },
+      ],
+      default: [],
+    },
+
     isDeleted: {
-      type: Boolean,
+    type: Boolean,
       default: false,
       index: true,
     },

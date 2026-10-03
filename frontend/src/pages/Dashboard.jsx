@@ -1,11 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import {
-  KeyRound,
-  FileText,
-  Code2,
-  Database,
-  Terminal,
-  UserRound,
   Shield,
   Lock,
   Plus,
@@ -13,17 +7,22 @@ import {
   Settings,
   LogOut,
   ChevronRight,
-  Link2,
   Menu,
 } from "lucide-react";
+
 
 import { useAuth } from "../context/AuthContext";
 import * as api from "../lib/api";
 import AddItemModal from "../components/AddItemModal";
-import PasswordItemForm from "../components/PasswordItemForm";
+import ItemCard from "../components/ItemCard";
+import TrashTable from "../components/TrashTable";
+import AddMenu from "../components/AddMenu";
+import CategoryChips from "../components/CategoryChips";
+import UnlockVault from "./UnlockVault";
+import { CATEGORIES, VIEW_TYPES, emptyTitleFor, emptyHintFor } from "../lib/categories";
 import ItemDetailModal from "../components/ItemDetailModal";
 
-const categories = [
+const categories = CATEGORIES; [
   { label: "All Items", type: "all", icon: Shield },
   { label: "Passwords", type: "password", icon: KeyRound },
   { label: "API Keys", type: "secret", icon: KeyRound },
@@ -35,51 +34,39 @@ const categories = [
   { label: "Resources", type: "resource", icon: Link2 },
 ];
 
-const ICON_BY_TYPE = Object.fromEntries(categories.map((c) => [c.type, c.icon]));
 
-function subtitleFor(item) {
-  if (item.sensitive === true) return "Protected — unlock to view";
-  switch (item.type) {
-    case "dbCredential":
-      return [item.dbName, item.dbHost].filter(Boolean).join(" · ") || "Database credential";
-    case "resource":
-      return item.whySaved || item.url || "Saved resource";
-    case "snippet":
-      return item.language || "Code snippet";
-    case "person":
-      return item.email || item.company || "Contact";
-    case "password":
-      return "Password";
-    case "secret":
-      return "API key / secret";
-    case "env":
-      return "Environment variables";
-    case "note":
-      return "Note";
-    default:
-      return "";
-  }
-}
 
 function Dashboard() {
-  const { user, lock, logout } = useAuth();
+  const { user,vaultUnlocked, lock, logout } = useAuth();
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [activeCategory, setActiveCategory] = useState("all");
+const [activeCategory, setActiveCategory] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all"); // chips under the search box
+  const [addType, setAddType] = useState(null);
+  const [unlockRequest, setUnlockRequest] = useState(null);
+  const [actionError, setActionError] = useState("");
+
+  // "all", "starred", "archived" and "trash" are VIEWS of the item list
+  // (the backend filters them). Every other sidebar entry is a category.
+  const isView = VIEW_TYPES.includes(activeCategory);
+  const view = isView ? activeCategory : "all";
+
+  // Adding makes no sense inside Starred / Archived / Trash.
+  const canAdd = !["starred", "archived", "trash"].includes(activeCategory);
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
+
   const [openItemId, setOpenItemId] = useState(null);
 
 
-  async function fetchItems() {
-    setLoading(true);
-    setLoadError("");
+async function fetchItems({ silent = false } = {}) {
+if (!silent) setLoading(true);
+  setLoadError("");
     try {
-      const result = await api.getVaultItems();
+      const result = await api.getVaultItems(view);
       setItems(result.items || []);
     } catch (err) {
       setLoadError(err.message);
@@ -90,23 +77,27 @@ function Dashboard() {
 
   useEffect(() => {
     fetchItems();
-  }, []);
+  }, [view, vaultUnlocked]);
 
   const filteredItems = useMemo(() => {
     let list = items;
-    if (activeCategory !== "all") {
-      list = list.filter((i) => i.type === activeCategory);
+const typeKey = isView ? typeFilter : activeCategory;
+    if (typeKey !== "all") {
+list = list.filter((i) => i.type === typeKey);
     }
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       list = list.filter(
         (i) =>
-          i.title?.toLowerCase().includes(q) ||
+i.title?.toLowerCase().includes(q) ||
+          i.website?.toLowerCase().includes(q) ||
+          (i.fields || []).some((f) => f.key?.toLowerCase().includes(q)) ||
           (i.tags || []).some((t) => t.toLowerCase().includes(q))
       );
     }
     return list;
-  }, [items, activeCategory, searchQuery]);
+}, [items, activeCategory, typeFilter, isView, searchQuery]);
+
 
   async function handleLock() {
     try {
@@ -124,8 +115,69 @@ function Dashboard() {
     }
   }
 
+// Run an action; if the vault is locked (423) ask for the master
+  // password and then run the same action again.
+  async function runWithUnlock(action) {
+    setActionError("");
+    try {
+      await action();
+    } catch (err) {
+      if (err.status === 423) setUnlockRequest({ retry: action });
+      else setActionError(err.message);
+    }
+  }
+
+  function openAdd(type) {
+    setAddType(type);
+    setShowAddModal(true);
+  }
+
+  const refresh = () => fetchItems({ silent: true });
+
+  const toggleStar = (item) =>
+    runWithUnlock(async () => {
+      await api.starVaultItem(item._id, !item.isStarred);
+      await refresh();
+    });
+
+  const archiveItem = (item) =>
+    runWithUnlock(async () => {
+      await api.archiveVaultItem(item._id, true);
+      await refresh();
+    });
+
+  const unarchiveItem = (item) =>
+    runWithUnlock(async () => {
+      await api.archiveVaultItem(item._id, false);
+      await refresh();
+    });
+
+  const moveToTrash = (item) =>
+    runWithUnlock(async () => {
+      await api.deleteVaultItem(item._id);
+      await refresh();
+    });
+
+  const restoreItem = (item) =>
+    runWithUnlock(async () => {
+      await api.restoreVaultItem(item._id);
+      await refresh();
+    });
+
+  const deleteForever = (item) =>
+    runWithUnlock(async () => {
+      await api.permanentlyDeleteVaultItem(item._id);
+      await refresh();
+    });
+
+  const emptyTrash = () =>
+    runWithUnlock(async () => {
+      await api.emptyTrash();
+      await refresh();
+    });
+
   function handleItemCreated(newItem) {
-    setItems((prev) => [newItem, ...prev]);
+  setItems((prev) => [newItem, ...prev]);
     // Re-fetch too, since the create response is intentionally minimal
     // (id/type/title/sensitive/createdAt) and the list view benefits
     // from the fuller set of fields listVaultItems returns.
@@ -135,13 +187,9 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-bg text-text">
                {showAddModal && (
-        <AddItemModal onClose={() => setShowAddModal(false)} onCreated={handleItemCreated} />
-      )}
-
-      {showPasswordForm && (
-        <PasswordItemForm onClose={() => setShowPasswordForm(false)} onCreated={handleItemCreated} />
-      )}   
-
+<AddItemModal defaultType={addType} onClose={() => setShowAddModal(false)} onCreated={handleItemCreated} />
+)}
+  
       {openItemId && (
         <ItemDetailModal
           itemId={openItemId}
@@ -153,8 +201,19 @@ function Dashboard() {
           }}
         />
       )}
+{unlockRequest && (
+        <UnlockVault
+          onCancel={() => setUnlockRequest(null)}
+          onUnlocked={() => {
+            const retry = unlockRequest.retry;
+            setUnlockRequest(null);
+            if (retry) runWithUnlock(retry);
+          }}
+        />
+      )}
 
       {/* Sidebar */}
+
       {mobileNavOpen && (
   <div
     className="fixed inset-0 z-30 bg-black/60 lg:hidden"
@@ -191,11 +250,13 @@ function Dashboard() {
                   key={category.type}
                   type="button"
                  onClick={() => {
-  setActiveCategory(category.type);
-  setMobileNavOpen(false);
+                  setActiveCategory(category.type);
+  setTypeFilter("all");
+  setActionError("");
+                  setMobileNavOpen(false);
 }} 
-                  className={`group flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${
-                    isActive ? "bg-surface-alt text-text" : "text-text-muted hover:bg-surface hover:text-text"
+  className={`group flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${category.type === "password" ? "!mt-5 relative before:absolute before:-top-2.5 before:left-0 before:right-0 before:border-t before:border-border" : ""} ${
+isActive ? "bg-surface-alt text-text" : "text-text-muted hover:bg-surface hover:text-text"
                   }`}
                 >
                   <Icon size={17} className={isActive ? "text-vault-green" : "text-text-muted"} />
@@ -226,7 +287,7 @@ function Dashboard() {
         <div className="border-t border-border p-4">
           <div className="mb-3 px-2">
             <p className="truncate font-mono text-xs text-text">{user?.email}</p>
-            <p className="mt-1 text-[11px] text-vault-green">Vault unlocked</p>
+            <p className={`mt-1 text-[11px] ${vaultUnlocked ? "text-vault-green" : "text-amber"}`}>{vaultUnlocked ? "Vault unlocked" : "Vault locked"}</p>
           </div>
           <button
             type="button"
@@ -264,11 +325,11 @@ function Dashboard() {
 
           <button
             type="button"
-            onClick={handleLock}
+            onClick={vaultUnlocked ? handleLock : () => setUnlockRequest({})}
             className="flex items-center gap-2 border border-border bg-surface px-4 py-2.5 text-sm font-medium transition-colors hover:border-vault-green hover:text-vault-green"
           >
             <Lock size={16} />
-            Lock vault
+            {vaultUnlocked ? "Lock vault" : "Unlock vault"}
           </button>
         </header>
 
@@ -286,15 +347,18 @@ function Dashboard() {
               </p>
             </div>
 
-            <button type="button" onClick={() => (activeCategory === "password" ? setShowPasswordForm(true) : setShowAddModal(true))} className="btn-primary flex items-center gap-2">
-              <Plus size={17} />
-              New item
-            </button>
+            <AddMenu activeCategory={activeCategory} onAdd={openAdd} />
           </div>
+
+            {isView && activeCategory !== "trash" && (
+            <CategoryChips value={typeFilter} onChange={setTypeFilter} />
+          )}
 
           {loading && <p className="mt-8 text-text-muted text-sm">Loading…</p>}
 
           {loadError && <p className="mt-8 text-danger text-sm">{loadError}</p>}
+
+          {actionError && <p className="mt-6 text-danger text-sm">{actionError}</p>}
 
           {!loading && !loadError && filteredItems.length === 0 && (
             <div className="mt-8 border border-dashed border-border px-6 py-20 text-center">
@@ -302,54 +366,45 @@ function Dashboard() {
                 <Shield size={22} className="text-vault-green" />
               </div>
               <h2 className="mt-6 font-heading text-xl font-medium">
-                {items.length === 0 ? "Your vault is empty" : "No items match"}
+            {emptyTitleFor(view, items.length === 0)}
               </h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-muted">
                 {items.length === 0
-                  ? "Start by adding your first password, API key, secure note, environment file, database credential, or code snippet."
+                 ? emptyHintFor(view) 
                   : "Try a different category or search term."}
               </p>
-              {items.length === 0 && (
-                <button type="button" onClick={() => setShowAddModal(true)} className="btn-secondary mt-6 gap-2">
-                  <Plus size={16} />
+                {items.length === 0 && canAdd && (
+                  <button type="button" onClick={() => openAdd(isView ? null : activeCategory)} className="btn-secondary mt-6 gap-2">
+<Plus size={16} />
                   Add your first item
                 </button>
               )}
             </div>
           )}
 
-          {!loading && !loadError && filteredItems.length > 0 && (
-            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredItems.map((item) => {
-                const Icon = ICON_BY_TYPE[item.type] || Shield;
-                return (
-                                    <div
-                    key={item._id}
-                    onClick={() => setOpenItemId(item._id)}
-                    className="border border-border bg-surface p-4 hover:border-vault-green transition-colors cursor-pointer"
-                  >
-                      <div className="flex items-start gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-border bg-surface-alt">
-                        <Icon size={16} className="text-vault-green" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-sm truncate">{item.title}</p>
-                        <p className="text-xs text-text-muted mt-0.5 truncate">{subtitleFor(item)}</p>
-                      </div>
-                      {item.sensitive === true && <Lock size={14} className="text-amber shrink-0 mt-1" />}
-                    </div>
-                    {item.tags?.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-3">
-                        {item.tags.map((tag) => (
-                          <span key={tag} className="text-[10px] font-mono px-2 py-0.5 border border-border rounded-full text-text-muted">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+          {!loading && !loadError && filteredItems.length > 0 && view === "trash" && (
+            <TrashTable
+              items={filteredItems}
+              onRestore={restoreItem}
+              onDeleteForever={deleteForever}
+              onEmptyTrash={emptyTrash}
+            />
+          )}
+
+          {!loading && !loadError && filteredItems.length > 0 && view !== "trash" && (
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {filteredItems.map((item) => (
+                <ItemCard
+                  key={item._id}
+                  item={item}
+                  onOpen={setOpenItemId}
+                  onToggleStar={toggleStar}
+                  onArchive={archiveItem}
+                  onUnarchive={unarchiveItem}
+                  onDelete={moveToTrash}
+                  onNeedUnlock={(retry) => setUnlockRequest({ retry })}
+                />
+              ))}
             </div>
           )}
         </div>

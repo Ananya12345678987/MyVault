@@ -13,12 +13,18 @@ const {
   getItem,
   updateItem,
   deleteItem,
+  setStarred,
+  setArchived,
+  restoreItem,
+  permanentlyDeleteItem,
+  emptyTrashItems,
 } = require("../controllers/vaultController");
 
 const {
   createVaultItemValidator,
   updateVaultItemValidator,
   itemIdValidator,
+  flagValueValidator,
 } = require("../validators/vaultItemValidators");
 
 const router = express.Router();
@@ -48,5 +54,12 @@ router.put(
 );
 
 router.delete("/items/:id", itemIdValidator, validate, deleteItem);
+
+// Star / archive / trash lifecycle
+router.patch("/items/:id/star", itemIdValidator, flagValueValidator, validate, setStarred);
+router.patch("/items/:id/archive", itemIdValidator, flagValueValidator, validate, setArchived);
+router.patch("/items/:id/restore", itemIdValidator, validate, restoreItem);
+router.delete("/items/:id/permanent", itemIdValidator, validate, permanentlyDeleteItem);
+router.delete("/trash", emptyTrashItems);
 
 module.exports = router;

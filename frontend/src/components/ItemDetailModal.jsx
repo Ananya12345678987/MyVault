@@ -91,7 +91,7 @@ export default function ItemDetailModal({ itemId, onClose, onUpdated, onDeleted 
     setSaving(true);
     setError("");
     try {
-            const payload = { title: form.title, notes: form.notes };
+
       for (const key of TYPE_FIELDS[detail.type] || []) {
         payload[key] = form[key];
       }
@@ -246,13 +246,6 @@ export default function ItemDetailModal({ itemId, onClose, onUpdated, onDeleted 
                     </span>
                   ))}
                 </div>
-              )}
-
-                            {(detail.createdAt || detail.updatedAt) && (
-                <p className="text-[11px] text-text-muted font-mono">
-                  Created {new Date(detail.createdAt).toLocaleDateString()} · Updated{" "}
-                  {new Date(detail.updatedAt).toLocaleDateString()}
-                </p>
               )}
 
               <div className="flex gap-3 pt-4 border-t border-border">

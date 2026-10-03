@@ -1,5 +1,15 @@
 const VaultItem = require("../models/VaultItem");
 const { encryptField, decryptField } = require("../security/crypto");
+const {
+  USES_FIELDS_TYPES,
+  KEY_VALUE_TYPES,
+  normalizeFields,
+  splitFields,
+  mergeFields,
+  listFields,
+  legacyDetailFields,
+} = require("./vaultFields");
+
 
 // EVERY type now goes through the same "user decides" path — there is
 // no more fixed always-encrypted category. This list is exhaustive:
@@ -21,6 +31,32 @@ const FLEXIBLE_TYPE_FIELDS = {
   snippet: ["language", "code"],
   person: ["name", "email", "phone", "company", "role"],
 };
+
+// Every item can carry free-form `notes`. They are now encrypted together
+// with the rest of a protected item's content instead of sitting in
+// plaintext next to it. Key/value items and persons also carry their
+// per-field values in `fieldValues`.
+for (const t of FLEXIBLE_TYPES) FLEXIBLE_TYPE_FIELDS[t].push("notes");
+for (const t of USES_FIELDS_TYPES) FLEXIBLE_TYPE_FIELDS[t].push("fieldValues");
+
+// The old single-value columns that `fields` replaces.
+const LEGACY_CONTENT_KEYS = {
+  password: ["password"],
+  secret: ["secret"],
+  env: ["envContent"],
+  dbCredential: ["dbConnectionUri"],
+};
+
+// There is exactly one "Myself" profile per user.
+async function assertNoMyselfProfile(userId, exceptId) {
+  const filter = { userId, type: "person", personGroup: "myself", isDeleted: false };
+  if (exceptId) filter._id = { $ne: exceptId };
+  if (await VaultItem.exists(filter)) {
+    const err = new Error('You already have a "Myself" profile - edit that one instead.');
+    err.status = 409;
+    throw err;
+  }
+}
 
 // For types with exactly one protectable field, this is the name the
 // frontend expects it under (`detail.value`) after decrypting.
@@ -45,6 +81,7 @@ async function createVaultItem({
   username, website, password, secret, envContent, dbConnectionUri, dbName, dbHost,
   sensitive, noteContent, url, whySaved, whatToRemember, language, code,
   name, email, phone, company, role, tags, notes, data = {},
+  kvFields, personGroup,
 }) {
   if (!FLEXIBLE_TYPES.includes(type)) {
     const err = new Error(`Unsupported item type: ${type}`);
@@ -52,9 +89,30 @@ async function createVaultItem({
     throw err;
   }
 
-  const fields = { password, secret, envContent, dbConnectionUri, noteContent, url, whySaved, whatToRemember, language, code, name, email, phone, company, role };
+// Key/value items (and a person's extra info) arrive as `kvFields`.
+  // Names are stored in plaintext; values go to the encrypted blob when
+  // the item is sensitive (see services/vaultFields.js).
+  const usesFields = USES_FIELDS_TYPES.includes(type) && kvFields !== undefined;
+  let publicFields;
+  let fieldValues;
+  if (usesFields) {
+    const split = splitFields(normalizeFields(kvFields), Boolean(sensitive));
+    publicFields = split.publicFields;
+    fieldValues = split.protectedValues;
+  }
 
-  const doc = { userId, type, title, tags, notes, data, sensitive };
+  const fields = { password, secret, envContent, dbConnectionUri, noteContent, url, whySaved, whatToRemember, language, code, name, email, phone, company, role, notes, fieldValues };
+
+const doc = { userId, type, title, tags, data, sensitive };
+
+  if (usesFields) {
+    doc.fields = publicFields;
+    doc.fieldsVersion = 2;
+  }
+  if (type === "person") {
+    doc.personGroup = personGroup || "other";
+    if (doc.personGroup === "myself") await assertNoMyselfProfile(userId);
+  }
 
   // Always-plaintext metadata, unaffected by the sensitive choice.
     if (type === "password") {
@@ -83,15 +141,103 @@ async function createVaultItem({
 }
 
 /**
- * List items without revealing sensitive values — safe while locked.
+ * Which items a sidebar view shows. (The category filter stays client-side.)
  */
-async function listVaultItems(userId) {
-  return VaultItem.find({ userId, isDeleted: false })
-    .select(
-      "type title sensitive dbName dbHost url whySaved whatToRemember language code name email phone company role tags data createdAt updatedAt"
-    )
-    .sort({ updatedAt: -1 });
+function listFilter(userId, view) {
+  switch (view) {
+    case "trash":
+      return { userId, isDeleted: true };
+    case "archived":
+      return { userId, isDeleted: false, isArchived: true };
+    case "starred":
+      return { userId, isDeleted: false, isArchived: { $ne: true }, isStarred: true };
+    default:
+      return { userId, isDeleted: false, isArchived: { $ne: true } };
+  }
 }
+
+/**
+ * Shape one row for the list response. Protected field values are never
+ * included. If the vault is unlocked, the UNPROTECTED values of encrypted
+ * items (Email, Username, PORT...) are decrypted so the cards can show
+ * them; the blob itself is never sent to the client.
+ */
+// Plain-text preview of a rich-text note (React escapes it when shown).
+function plainPreview(html, max = 140) {
+  return String(html || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
+function toListItem(doc, vaultKey) {
+const o = doc.toObject();
+let decryptedVals = null;
+  let payload = null; // the decrypted blob, only while the vault is unlocked
+
+if (o.sensitive && vaultKey && o.protectedContentEncrypted) {
+  try {
+payload = JSON.parse(decryptField(o.protectedContentEncrypted, vaultKey));
+      decryptedVals = payload.fieldValues || {};
+  } catch {
+decryptedVals = null; // stale/wrong key: stay locked, never fail the whole list
+      payload = null;
+  }
+  }
+
+  if (USES_FIELDS_TYPES.includes(o.type)) o.fields = listFields(o, decryptedVals);
+o.locked = Boolean(o.sensitive) && !payload;
+
+  // Short, safe previews for the cards. Only built from content we are
+  // allowed to read: a plaintext item, or an encrypted one with the vault
+  // unlocked. Full content is only ever sent by the detail endpoint.
+  o.preview = null;
+  if (!o.sensitive || payload) {
+    const src = o.sensitive ? payload : o;
+    switch (o.type) {
+      case "note":
+        o.preview = { text: plainPreview(src.noteContent) };
+        break;
+      case "snippet":
+        o.preview = {
+          language: src.language || null,
+          code: String(src.code || "").split("\n").slice(0, 3).join("\n").slice(0, 240),
+          description: src.notes || null,
+        };
+        break;
+      case "resource":
+        o.preview = { url: src.url || null, whySaved: src.whySaved || null };
+        break;
+      case "person":
+        o.preview = { phone: src.phone || null, email: src.email || null };
+        break;
+      default:
+        break;
+    }
+  }
+delete o.protectedContentEncrypted;
+  delete o.noteContent;
+  delete o.code;
+  return o;
+}
+
+/**
+ * List items without revealing sensitive values
+*/
+async function listVaultItems(userId, view = "all", vaultKey = null) {
+return VaultItem.find(listFilter(userId, view))
+  .select(
+      "type title sensitive dbName dbHost url whySaved whatToRemember language code name email phone company role tags notes data createdAt updatedAt " +
+      "username website fields fieldsVersion personGroup isStarred isArchived deletedAt +protectedContentEncrypted +noteContent"
+    )
+.sort({ updatedAt: -1 })
+    .then((docs) => docs.map((d) => toListItem(d, vaultKey)));
+  }
 
 /**
  * Get one vault item.
@@ -152,6 +298,19 @@ async function getVaultItem(userId, itemId, vaultKey) {
     if (singleField) result.value = item[singleField] ?? null;
   }
 
+result.isStarred = Boolean(item.isStarred);
+  result.isArchived = Boolean(item.isArchived);
+  result.deletedAt = item.deletedAt || null;
+  result.personGroup = item.personGroup || null;
+
+  if (USES_FIELDS_TYPES.includes(item.type)) {
+    const isLegacy = KEY_VALUE_TYPES.includes(item.type) && !(item.fieldsVersion >= 2);
+    result.fields = isLegacy
+      ? legacyDetailFields(item.type, result)
+      : mergeFields(item.fields, result.fieldValues);
+  }
+  delete result.fieldValues;
+
   return result;
 }
 
@@ -163,10 +322,10 @@ async function getVaultItem(userId, itemId, vaultKey) {
  * OR if this request is turning it sensitive (to encrypt it).
  */
   async function updateVaultItem({
-  userId, itemId, vaultKey, title,
+  userId, itemId, vaultKey, title,website,
   username, password, secret, envContent, dbConnectionUri, dbName, dbHost,
   sensitive, noteContent, url, whySaved, whatToRemember, language, code,
-  name, email, phone, company, role, tags, notes, data,
+  name, email, phone, company, role, tags, notes, data,kvFields, personGroup,
 }) {
   const item = await VaultItem.findOne({ _id: itemId, userId, isDeleted: false }).select(
     "+usernameEncrypted +passwordEncrypted +secretEncrypted +envContentEncrypted " +
@@ -183,7 +342,10 @@ async function getVaultItem(userId, itemId, vaultKey) {
 
   if (title !== undefined) item.title = title;
   if (tags !== undefined) item.tags = tags;
-  if (notes !== undefined) item.notes = notes;
+  if (personGroup !== undefined && item.type === "person" && personGroup !== item.personGroup) {
+    if (personGroup === "myself") await assertNoMyselfProfile(item.userId, item._id);
+    item.personGroup = personGroup;
+  }
   if (data !== undefined) item.data = data;
   if (dbName !== undefined) item.dbName = dbName;
   if (dbHost !== undefined) item.dbHost = dbHost;
@@ -191,7 +353,7 @@ async function getVaultItem(userId, itemId, vaultKey) {
   if (website !== undefined) item.website = website;
 
   const wasSensitive = item.sensitive;
-  const newFieldValues = { password, secret, envContent, dbConnectionUri, noteContent, url, whySaved, whatToRemember, language, code, name, email, phone, company, role };
+  const newFieldValues = { password, secret, envContent, dbConnectionUri, noteContent, url, whySaved, whatToRemember, language, code, name, email, phone, company, role, notes };
 
   let currentPayload = {};
   if (wasSensitive && item.protectedContentEncrypted) {
@@ -205,8 +367,41 @@ async function getVaultItem(userId, itemId, vaultKey) {
     if (newFieldValues[k] !== undefined) currentPayload[k] = newFieldValues[k];
   }
 
+// A legacy plaintext `notes` value is carried into the payload (and so
+  // gets encrypted on protected items) instead of being dropped.
+  if (currentPayload.notes === undefined && item.notes !== undefined) {
+    currentPayload.notes = item.notes;
+  }
+
+  // Dynamic key/value fields: re-split when the client sends them, or when
+  // the item flips between protected and not (values must move between
+  // the plaintext fields and the encrypted blob).
+  if (USES_FIELDS_TYPES.includes(item.type)) {
+    const converting = wasSensitive !== willBeSensitive && item.fieldsVersion >= 2;
+    if (kvFields !== undefined || converting) {
+      const nextFields =
+        kvFields !== undefined
+          ? normalizeFields(kvFields)
+          : mergeFields(item.fields, currentPayload.fieldValues);
+      const split = splitFields(nextFields, willBeSensitive);
+
+      if (!(item.fieldsVersion >= 2) && KEY_VALUE_TYPES.includes(item.type)) {
+        // First save through the new editor: retire the legacy columns.
+        for (const k of LEGACY_CONTENT_KEYS[item.type]) delete currentPayload[k];
+        item.username = undefined;
+        item.dbName = undefined;
+        item.dbHost = undefined;
+      }
+
+      item.fields = split.publicFields;
+      item.fieldsVersion = 2;
+      if (split.protectedValues) currentPayload.fieldValues = split.protectedValues;
+      else delete currentPayload.fieldValues;
+    }
+  }
+
   if (willBeSensitive) {
-    item.protectedContentEncrypted = encryptField(JSON.stringify(currentPayload), vaultKey);
+  item.protectedContentEncrypted = encryptField(JSON.stringify(currentPayload), vaultKey);
     for (const k of FLEXIBLE_TYPE_FIELDS[item.type]) item[k] = undefined;
   } else {
     for (const k of FLEXIBLE_TYPE_FIELDS[item.type]) item[k] = currentPayload[k];
@@ -238,12 +433,77 @@ async function deleteVaultItem(userId, itemId, vaultKey) {
   }
 
   item.isDeleted = true;
+  item.deletedAt = new Date();
   await item.save();
   return item;
 }
 
+/**
+ * Star / archive. These neither reveal nor destroy content, so they work
+ * while the vault is locked. `timestamps: false` keeps "Updated" meaning
+ * "content last edited".
+ */
+async function setItemFlag(userId, itemId, flag, value) {
+  if (!["isStarred", "isArchived"].includes(flag)) throw new Error("Unknown flag.");
+  return VaultItem.findOneAndUpdate(
+    { _id: itemId, userId, isDeleted: false },
+    { $set: { [flag]: Boolean(value) } },
+    { new: true, timestamps: false }
+  ).select("type title isStarred isArchived");
+}
+
+/**
+ * Bring an item back from Trash. Restoring exposes nothing, so no unlock.
+ */
+async function restoreVaultItem(userId, itemId) {
+  return VaultItem.findOneAndUpdate(
+    { _id: itemId, userId, isDeleted: true },
+    { $set: { isDeleted: false }, $unset: { deletedAt: 1 } },
+    { new: true, timestamps: false }
+  ).select("type title");
+}
+
+/**
+ * Destroy an item for good. Only items already in Trash qualify, and a
+ * protected item needs the vault unlocked (same rule as soft delete).
+ */
+async function permanentlyDeleteVaultItem(userId, itemId, vaultKey) {
+  const item = await VaultItem.findOne({ _id: itemId, userId, isDeleted: true }).select("type sensitive");
+  if (!item) return null;
+
+  if (itemRequiresUnlock(item.type, item.sensitive) && !vaultKey) {
+    const err = new Error("This item is protected - unlock your vault to delete it permanently.");
+    err.status = 423;
+    throw err;
+  }
+
+  await VaultItem.deleteOne({ _id: item._id, userId });
+  return item;
+}
+
+/**
+ * Permanently delete everything in Trash. If any trashed item is protected
+ * the vault must be unlocked, and then nothing is deleted at all.
+ */
+async function emptyTrash(userId, vaultKey) {
+  const trashed = await VaultItem.find({ userId, isDeleted: true }).select("type sensitive");
+
+  if (trashed.some((i) => itemRequiresUnlock(i.type, i.sensitive)) && !vaultKey) {
+    const err = new Error("Trash contains protected items - unlock your vault to empty it.");
+    err.status = 423;
+    throw err;
+  }
+
+  const result = await VaultItem.deleteMany({ userId, isDeleted: true });
+  return result.deletedCount ?? 0;
+}
+
 module.exports = {
-  createVaultItem,
+  emptyTrash,
+setItemFlag,
+  restoreVaultItem,
+  permanentlyDeleteVaultItem,
+createVaultItem,
   listVaultItems,
   getVaultItem,
   updateVaultItem,

@@ -46,8 +46,8 @@ const EMPTY_FORM = {
   tagsInput: "",
 };
 
-export default function AddItemModal({ onClose, onCreated }) {
-  const [form, setForm] = useState(EMPTY_FORM);
+export default function AddItemModal({ onClose, onCreated ,defaultType}) {
+const [form, setForm] = useState({ ...EMPTY_FORM, type: defaultType || EMPTY_FORM.type });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [needsUnlock, setNeedsUnlock] = useState(false);

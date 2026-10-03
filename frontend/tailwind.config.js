@@ -22,6 +22,7 @@ export default {
         "vault-green-hover": "#42B88F",
 
         amber: "#D6A84F",
+        danger: "#E5645F",
       },
 
       fontFamily: {

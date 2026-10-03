@@ -94,8 +94,8 @@ export async function getVaultStatus() {
    VAULT ITEMS
    ========================================================= */
 
-export async function getVaultItems() {
-  return request("/vault/items");
+export async function getVaultItems(view = "all") {
+return request(`/vault/items?view=${encodeURIComponent(view)}`);
 }
 
 export async function getVaultItem(id) {
@@ -116,8 +116,42 @@ export async function updateVaultItem(id, item) {
   });
 }
 
+
+export async function starVaultItem(id, value) {
+  return request(`/vault/items/${id}/star`, {
+    method: "PATCH",
+    body: JSON.stringify({ value }),
+  });
+}
+
+export async function archiveVaultItem(id, value) {
+  return request(`/vault/items/${id}/archive`, {
+    method: "PATCH",
+    body: JSON.stringify({ value }),
+  });
+}
+
+export async function restoreVaultItem(id) {
+  return request(`/vault/items/${id}/restore`, {
+    method: "PATCH",
+  });
+}
+
+export async function permanentlyDeleteVaultItem(id) {
+  return request(`/vault/items/${id}/permanent`, {
+    method: "DELETE",
+  });
+}
+
+export async function emptyTrash() {
+  return request("/vault/trash", {
+    method: "DELETE",
+  });
+}
+
 export async function deleteVaultItem(id) {
-  return request(`/vault/items/${id}`, {
+
+return request(`/vault/items?view=${encodeURIComponent(view)}`);
     method: "DELETE",
   });
 }

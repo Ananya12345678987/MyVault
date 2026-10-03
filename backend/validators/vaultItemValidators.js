@@ -19,8 +19,29 @@ const VALID_TYPES = [
 const FLEXIBLE_TYPES = VALID_TYPES;
 
 
+const PERSON_GROUPS = ["myself", "family", "other"];
+
+// Shared by create and update: website, person group, and the dynamic
+// key/value `fields` array.
+const extraItemValidators = [
+  body("website").optional().isString().isLength({ max: 300 }).withMessage("Website cannot exceed 300 characters"),
+  body("personGroup").optional().isIn(PERSON_GROUPS).withMessage("Invalid person group"),
+  body("fields").optional().isArray({ max: 100 }).withMessage("Fields must be an array of at most 100 entries"),
+  body("fields.*.key").isString().trim().notEmpty().isLength({ max: 200 }).withMessage("Every field needs a name (up to 200 characters)"),
+  body("fields.*.value").optional({ nullable: true }).isString().withMessage("Field values must be strings"),
+  body("fields.*.protected").optional().isBoolean().withMessage("Field 'protected' must be true or false"),
+  body("fields.*.info").optional().isArray({ max: 20 }).withMessage("Field info must be an array of at most 20 entries"),
+  body("fields.*.info.*.label").optional().isString().isLength({ max: 200 }).withMessage("Info label is too long"),
+  body("fields.*.info.*.text").optional().isString().isLength({ max: 2000 }).withMessage("Info text is too long"),
+];
+
+// For PATCH /items/:id/star and /archive
+const flagValueValidator = [
+  body("value").isBoolean().withMessage("value must be true or false").toBoolean(),
+];
+
 const createVaultItemValidator = [
-  body("type")
+body("type")
     .isString()
     .withMessage("Type must be a string")
     .isIn(VALID_TYPES)
@@ -67,7 +88,8 @@ const createVaultItemValidator = [
   body("role").optional().isString().withMessage("Role must be a string"),
   body("tags").optional().isArray().withMessage("Tags must be an array"),
   body("tags.*").optional().isString().withMessage("Each tag must be a string"),
-  body("notes").optional().isString().isLength({ max: 5000 }).withMessage("Notes must be under 5000 characters"),
+body("notes").optional().isString().isLength({ max: 5000 }).withMessage("Notes must be under 5000 characters"),
+  ...extraItemValidators,
   body("data").optional().isObject().withMessage("Data must be an object"),
 ];
 
@@ -82,7 +104,9 @@ const createVaultItemValidator = [
  *    "if you DID send it, it must be a boolean," not "you must send it"
  */
 const updateVaultItemValidator = [
-  body("sensitive").optional().isBoolean().withMessage("Sensitive must be a boolean"),
+body("sensitive").optional().isBoolean().withMessage("Sensitive must be a boolean"),
+  body("notes").optional().isString().isLength({ max: 5000 }).withMessage("Notes must be under 5000 characters"),
+  ...extraItemValidators,
   body("title").optional().isString().trim().notEmpty().isLength({ max: 200 }).withMessage("Title must be a non-empty string up to 200 characters"),
   body("username").optional().isString().withMessage("Username must be a string"),
   body("password").optional().isString().withMessage("Password must be a string"),
@@ -117,4 +141,6 @@ module.exports = {
   createVaultItemValidator,
   updateVaultItemValidator,
   itemIdValidator,
+  flagValueValidator,
+  PERSON_GROUPS,
 };

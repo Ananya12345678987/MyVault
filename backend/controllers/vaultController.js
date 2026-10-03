@@ -19,6 +19,10 @@ const {
   updateVaultItem,
   deleteVaultItem,
   itemRequiresUnlock,
+  setItemFlag,
+  restoreVaultItem,
+  permanentlyDeleteVaultItem,
+  emptyTrash,
 } = require("../services/vaultItemService");
 
 const VAULT_SESSION_COOKIE = "vaultSessionId";
@@ -108,8 +112,10 @@ async function createItem(req, res, next) {
       tags, notes, data,
     } = req.body;
 
+    const { website, fields, personGroup } = req.body;
+
     if (!type || !title) {
-      return res.status(400).json({ error: "Type and title are required." });
+    return res.status(400).json({ error: "Type and title are required." });
     }
 
     const requiresUnlock = itemRequiresUnlock(type, sensitive);
@@ -126,6 +132,7 @@ async function createItem(req, res, next) {
 
     const item = await createVaultItem({
       userId: req.userId, vaultKey,
+      website, notes, kvFields: fields, personGroup,
       type, sensitive, title,
       username, password, secret,
       envContent,
@@ -154,7 +161,14 @@ async function createItem(req, res, next) {
 
 async function listItems(req, res, next) {
   try {
-    const items = await listVaultItems(req.userId);
+    const VIEWS = ["all", "starred", "archived", "trash"];
+    const view = VIEWS.includes(req.query.view) ? req.query.view : "all";
+
+    // The key is optional: with it, the unprotected values of encrypted
+    // items are included for the cards; without it they stay locked.
+    const vaultKey = getVaultKey(req.cookies[VAULT_SESSION_COOKIE], req.userId);
+
+    const items = await listVaultItems(req.userId, view, vaultKey);
     return res.json({ items });
   } catch (err) {
     next(err);
@@ -205,8 +219,11 @@ async function updateItem(req, res, next) {
       tags, data,
     } = req.body;
 
+    const { website, notes, fields, personGroup } = req.body;
+
     const item = await updateVaultItem({
-      userId: req.userId,
+      website, notes, kvFields: fields, personGroup,
+    userId: req.userId,
       itemId: req.params.id,
       vaultKey,
       sensitive, title,
@@ -254,8 +271,61 @@ async function deleteItem(req, res, next) {
   }
 }
 
+function flagHandler(flag) {
+  return async (req, res, next) => {
+    try {
+      const item = await setItemFlag(req.userId, req.params.id, flag, req.body.value);
+      if (!item) return res.status(404).json({ error: "Vault item not found." });
+      return res.json({ id: item._id, isStarred: item.isStarred, isArchived: item.isArchived });
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
+const setStarred = flagHandler("isStarred");
+const setArchived = flagHandler("isArchived");
+
+async function restoreItem(req, res, next) {
+  try {
+    const item = await restoreVaultItem(req.userId, req.params.id);
+    if (!item) return res.status(404).json({ error: "Item not found in Trash." });
+    return res.json({ message: "Vault item restored." });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function permanentlyDeleteItem(req, res, next) {
+  try {
+    const vaultKey = getVaultKey(req.cookies[VAULT_SESSION_COOKIE], req.userId); // may be null
+
+    const item = await permanentlyDeleteVaultItem(req.userId, req.params.id, vaultKey);
+    if (!item) return res.status(404).json({ error: "Item not found in Trash." });
+    return res.json({ message: "Vault item permanently deleted." });
+  } catch (err) {
+    next(err); // a locked-item 423 lands here too
+  }
+}
+
+async function emptyTrashItems(req, res, next) {
+  try {
+    const vaultKey = getVaultKey(req.cookies[VAULT_SESSION_COOKIE], req.userId); // may be null
+
+    const deleted = await emptyTrash(req.userId, vaultKey);
+    return res.json({ message: "Trash emptied.", deleted });
+  } catch (err) {
+    next(err); // a locked-items 423 lands here too
+  }
+}
+
 module.exports = {
-  unlockVault,
+  emptyTrashItems,
+setStarred,
+  setArchived,
+  restoreItem,
+  permanentlyDeleteItem,
+unlockVault,
   lockVault,
   vaultStatus,
   createItem,

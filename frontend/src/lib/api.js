@@ -95,7 +95,7 @@ export async function getVaultStatus() {
    ========================================================= */
 
 export async function getVaultItems(view = "all") {
-return request(`/vault/items?view=${encodeURIComponent(view)}`);
+  return request(`/vault/items?view=${encodeURIComponent(view)}`);
 }
 
 export async function getVaultItem(id) {
@@ -115,7 +115,6 @@ export async function updateVaultItem(id, item) {
     body: JSON.stringify(item),
   });
 }
-
 
 export async function starVaultItem(id, value) {
   return request(`/vault/items/${id}/star`, {
@@ -150,8 +149,7 @@ export async function emptyTrash() {
 }
 
 export async function deleteVaultItem(id) {
-
-return request(`/vault/items?view=${encodeURIComponent(view)}`);
+  return request(`/vault/items/${id}`, {
     method: "DELETE",
   });
 }

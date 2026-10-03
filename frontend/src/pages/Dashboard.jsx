@@ -10,7 +10,6 @@ import {
   Menu,
 } from "lucide-react";
 
-
 import { useAuth } from "../context/AuthContext";
 import * as api from "../lib/api";
 import AddItemModal from "../components/AddItemModal";
@@ -22,28 +21,18 @@ import UnlockVault from "./UnlockVault";
 import { CATEGORIES, VIEW_TYPES, emptyTitleFor, emptyHintFor } from "../lib/categories";
 import ItemDetailModal from "../components/ItemDetailModal";
 
-const categories = CATEGORIES; [
-  { label: "All Items", type: "all", icon: Shield },
-  { label: "Passwords", type: "password", icon: KeyRound },
-  { label: "API Keys", type: "secret", icon: KeyRound },
-  { label: "Environment", type: "env", icon: Terminal },
-  { label: "Database", type: "dbCredential", icon: Database },
-  { label: "Notes", type: "note", icon: FileText },
-  { label: "Code", type: "snippet", icon: Code2 },
-  { label: "People", type: "person", icon: UserRound },
-  { label: "Resources", type: "resource", icon: Link2 },
-];
+const categories = CATEGORIES;
 
 
 
 function Dashboard() {
-  const { user,vaultUnlocked, lock, logout } = useAuth();
+  const { user, vaultUnlocked, lock, logout } = useAuth();
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-const [activeCategory, setActiveCategory] = useState("all");
+  const [activeCategory, setActiveCategory] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all"); // chips under the search box
   const [addType, setAddType] = useState(null);
   const [unlockRequest, setUnlockRequest] = useState(null);
@@ -62,9 +51,9 @@ const [activeCategory, setActiveCategory] = useState("all");
   const [openItemId, setOpenItemId] = useState(null);
 
 
-async function fetchItems({ silent = false } = {}) {
-if (!silent) setLoading(true);
-  setLoadError("");
+  async function fetchItems({ silent = false } = {}) {
+    if (!silent) setLoading(true);
+    setLoadError("");
     try {
       const result = await api.getVaultItems(view);
       setItems(result.items || []);
@@ -81,23 +70,22 @@ if (!silent) setLoading(true);
 
   const filteredItems = useMemo(() => {
     let list = items;
-const typeKey = isView ? typeFilter : activeCategory;
+    const typeKey = isView ? typeFilter : activeCategory;
     if (typeKey !== "all") {
-list = list.filter((i) => i.type === typeKey);
+      list = list.filter((i) => i.type === typeKey);
     }
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       list = list.filter(
         (i) =>
-i.title?.toLowerCase().includes(q) ||
+          i.title?.toLowerCase().includes(q) ||
           i.website?.toLowerCase().includes(q) ||
           (i.fields || []).some((f) => f.key?.toLowerCase().includes(q)) ||
           (i.tags || []).some((t) => t.toLowerCase().includes(q))
       );
     }
     return list;
-}, [items, activeCategory, typeFilter, isView, searchQuery]);
-
+  }, [items, activeCategory, typeFilter, isView, searchQuery]);
 
   async function handleLock() {
     try {
@@ -115,7 +103,7 @@ i.title?.toLowerCase().includes(q) ||
     }
   }
 
-// Run an action; if the vault is locked (423) ask for the master
+  // Run an action; if the vault is locked (423) ask for the master
   // password and then run the same action again.
   async function runWithUnlock(action) {
     setActionError("");
@@ -177,7 +165,7 @@ i.title?.toLowerCase().includes(q) ||
     });
 
   function handleItemCreated(newItem) {
-  setItems((prev) => [newItem, ...prev]);
+    setItems((prev) => [newItem, ...prev]);
     // Re-fetch too, since the create response is intentionally minimal
     // (id/type/title/sensitive/createdAt) and the list view benefits
     // from the fuller set of fields listVaultItems returns.
@@ -187,8 +175,8 @@ i.title?.toLowerCase().includes(q) ||
   return (
     <div className="min-h-screen bg-bg text-text">
                {showAddModal && (
-<AddItemModal defaultType={addType} onClose={() => setShowAddModal(false)} onCreated={handleItemCreated} />
-)}
+        <AddItemModal defaultType={addType} onClose={() => setShowAddModal(false)} onCreated={handleItemCreated} />
+      )}
   
       {openItemId && (
         <ItemDetailModal
@@ -201,7 +189,8 @@ i.title?.toLowerCase().includes(q) ||
           }}
         />
       )}
-{unlockRequest && (
+
+      {unlockRequest && (
         <UnlockVault
           onCancel={() => setUnlockRequest(null)}
           onUnlocked={() => {
@@ -213,7 +202,6 @@ i.title?.toLowerCase().includes(q) ||
       )}
 
       {/* Sidebar */}
-
       {mobileNavOpen && (
   <div
     className="fixed inset-0 z-30 bg-black/60 lg:hidden"
@@ -250,13 +238,13 @@ i.title?.toLowerCase().includes(q) ||
                   key={category.type}
                   type="button"
                  onClick={() => {
-                  setActiveCategory(category.type);
+  setActiveCategory(category.type);
   setTypeFilter("all");
   setActionError("");
-                  setMobileNavOpen(false);
+  setMobileNavOpen(false);
 }} 
-  className={`group flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${category.type === "password" ? "!mt-5 relative before:absolute before:-top-2.5 before:left-0 before:right-0 before:border-t before:border-border" : ""} ${
-isActive ? "bg-surface-alt text-text" : "text-text-muted hover:bg-surface hover:text-text"
+                  className={`group flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${category.type === "password" ? "!mt-5 relative before:absolute before:-top-2.5 before:left-0 before:right-0 before:border-t before:border-border" : ""} ${
+                    isActive ? "bg-surface-alt text-text" : "text-text-muted hover:bg-surface hover:text-text"
                   }`}
                 >
                   <Icon size={17} className={isActive ? "text-vault-green" : "text-text-muted"} />
@@ -347,10 +335,10 @@ isActive ? "bg-surface-alt text-text" : "text-text-muted hover:bg-surface hover:
               </p>
             </div>
 
-            <AddMenu activeCategory={activeCategory} onAdd={openAdd} />
+<AddMenu activeCategory={activeCategory} onAdd={openAdd} />
           </div>
 
-            {isView && activeCategory !== "trash" && (
+          {isView && activeCategory !== "trash" && (
             <CategoryChips value={typeFilter} onChange={setTypeFilter} />
           )}
 
@@ -366,23 +354,23 @@ isActive ? "bg-surface-alt text-text" : "text-text-muted hover:bg-surface hover:
                 <Shield size={22} className="text-vault-green" />
               </div>
               <h2 className="mt-6 font-heading text-xl font-medium">
-            {emptyTitleFor(view, items.length === 0)}
+                {emptyTitleFor(view, items.length === 0)}
               </h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-muted">
                 {items.length === 0
-                 ? emptyHintFor(view) 
+                  ? emptyHintFor(view)
                   : "Try a different category or search term."}
               </p>
-                {items.length === 0 && canAdd && (
-                  <button type="button" onClick={() => openAdd(isView ? null : activeCategory)} className="btn-secondary mt-6 gap-2">
-<Plus size={16} />
+              {items.length === 0 && canAdd && (
+                <button type="button" onClick={() => openAdd(isView ? null : activeCategory)} className="btn-secondary mt-6 gap-2">
+                  <Plus size={16} />
                   Add your first item
                 </button>
               )}
             </div>
           )}
 
-          {!loading && !loadError && filteredItems.length > 0 && view === "trash" && (
+{!loading && !loadError && filteredItems.length > 0 && view === "trash" && (
             <TrashTable
               items={filteredItems}
               onRestore={restoreItem}

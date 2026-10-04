@@ -16,7 +16,7 @@ export function makeId() {
 // Field names that usually hold something secret. Used only to suggest
 // "protected" for a NEW field until the user decides for themselves.
 const SENSITIVE_NAME =
-  /pass(word|wd|phrase|code)?|secret|token|api[-_ ]?key|private|credential|\bpin\b|cvv|otp|2fa|recovery|backup|seed|auth(?!or)|jwt|signing|bearer|session|cookie|security|connection|uri|dsn|salt|key/i;
+  /pass(word|wd|phrase|code)?|secret|token|api[-_ ]?key|private|credential|\bpin\b|cvv|otp|2fa|recovery|backup|seed|auth(?!or)|jwt|signing|bearer|session|cookie|security|connection|uri|url|dsn|salt|key/i;
 
 export function looksSensitive(name) {
   return SENSITIVE_NAME.test(String(name || ""));
@@ -52,6 +52,18 @@ export function validateRows(rows) {
     if (!r.key.trim()) return "Every field needs a name. Give it one, or remove the field.";
   }
   return "";
+}
+
+/** The first field name used more than once, or null. */
+export function findDuplicateKey(rows) {
+  const seen = new Set();
+  for (const r of rows) {
+    const key = r.key.trim();
+    if (!key) continue;
+    if (seen.has(key)) return key;
+    seen.add(key);
+  }
+  return null;
 }
 
 /** Editor rows -> API payload (blank rows and client-only keys dropped). */

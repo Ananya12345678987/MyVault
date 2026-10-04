@@ -284,7 +284,7 @@ export default function ItemCard({
 
   const subtitle = [
     TYPE_LABEL[item.type],
-    item.website || item.data?.project,
+    item.website,
     item.data?.environment,
     item.type === "person" ? PERSON_GROUP_LABEL[item.personGroup] : null,
     item.type === "snippet" ? item.preview?.language : null,

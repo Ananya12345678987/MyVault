@@ -205,7 +205,20 @@ export default function KeyValueEditor({
                 <div>
                   <span className="mb-1 block text-[11px] text-text-muted md:hidden">Value</span>
                   <div className="flex items-start gap-1.5">
-                    {masked ? (
+                    {masked && row.value.includes("\n") ? (
+                      // A password <input> would flatten line breaks (private
+                      // keys, certificates), so a masked multi-line value is
+                      // read-only until it is revealed.
+                      <input
+                        type="password"
+                        readOnly
+                        autoComplete="new-password"
+                        aria-label={`Value of ${label}`}
+                        value={"\u2022".repeat(8)}
+                        title="Multi-line value: reveal it to edit"
+                        className={`${CELL} font-mono`}
+                      />
+                    ) : masked ? (
                       <input
                         type="password"
                         autoComplete="new-password"

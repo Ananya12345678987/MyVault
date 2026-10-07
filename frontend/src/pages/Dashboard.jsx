@@ -20,6 +20,7 @@ import CategoryChips from "../components/CategoryChips";
 import UnlockVault from "./UnlockVault";
 import ItemEditorModal from "../components/ItemEditorModal";
 import { hasEditor } from "../editors";
+import PeopleGroups from "../components/PeopleGroups";
 import { CATEGORIES, VIEW_TYPES, emptyTitleFor, emptyHintFor } from "../lib/categories";
 import ItemDetailModal from "../components/ItemDetailModal";
 
@@ -408,7 +409,25 @@ function Dashboard() {
             />
           )}
 
-          {!loading && !loadError && filteredItems.length > 0 && view !== "trash" && (
+          {!loading && !loadError && filteredItems.length > 0 && activeCategory === "person" && (
+            <PeopleGroups
+              items={filteredItems}
+              renderCard={(item) => (
+                <ItemCard
+                  key={item._id}
+                  item={item}
+                  onOpen={openItem}
+                  onToggleStar={toggleStar}
+                  onArchive={archiveItem}
+                  onUnarchive={unarchiveItem}
+                  onDelete={moveToTrash}
+                  onNeedUnlock={(retry) => setUnlockRequest({ retry })}
+                />
+              )}
+            />
+          )}
+
+          {!loading && !loadError && filteredItems.length > 0 && view !== "trash" && activeCategory !== "person" && (
             <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {filteredItems.map((item) => (
                 <ItemCard

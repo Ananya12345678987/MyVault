@@ -47,6 +47,9 @@ const LEGACY_CONTENT_KEYS = {
   dbCredential: ["dbConnectionUri"],
 };
 
+// A person's phone/email/company/role used to be separate columns too.
+LEGACY_CONTENT_KEYS.person = ["name", "email", "phone", "company", "role"];
+
 // There is exactly one "Myself" profile per user.
 async function assertNoMyselfProfile(userId, exceptId) {
   const filter = { userId, type: "person", personGroup: "myself", isDeleted: false };
@@ -165,8 +168,11 @@ function listFilter(userId, view) {
 // Plain-text preview of a rich-text note (React escapes it when shown).
 function plainPreview(html, max = 140) {
   return String(html || "")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/g, " ")
+// block ends become a space; inline tags (bold, links...) vanish, so a
+    // word split by formatting stays one word
+    .replace(/<\/(p|div|h[1-6]|li|ul|ol|pre|blockquote|tr)>|<br\s*\/?>|<hr\s*\/?>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+  .replace(/&nbsp;/g, " ")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&")
@@ -385,8 +391,8 @@ result.isStarred = Boolean(item.isStarred);
           : mergeFields(item.fields, currentPayload.fieldValues);
       const split = splitFields(nextFields, willBeSensitive);
 
-      if (!(item.fieldsVersion >= 2) && KEY_VALUE_TYPES.includes(item.type)) {
-        // First save through the new editor: retire the legacy columns.
+      if (!(item.fieldsVersion >= 2)) {
+      // First save through the new editor: retire the legacy columns.
         for (const k of LEGACY_CONTENT_KEYS[item.type]) delete currentPayload[k];
         item.username = undefined;
         item.dbName = undefined;

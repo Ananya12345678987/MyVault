@@ -7,8 +7,9 @@
  * copyToClipboard live in ../lib/secrets.js.)
  */
 
+
 const BUTTON =
-  "inline-flex h-7 w-7 shrink-0 items-center justify-center border border-border bg-surface-alt text-text-muted transition-colors hover:border-vault-green hover:text-vault-green disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-alt text-text-muted transition-colors hover:border-vault-green hover:text-vault-green disabled:cursor-not-allowed disabled:opacity-50";
 
 function Svg({ children }) {
   return (

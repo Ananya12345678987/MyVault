@@ -19,11 +19,11 @@ export default function CategoryChips({ value, onChange }) {
           <button
             key={chip.type}
             type="button"
-            onClick={() => onChange(chip.type)}
+                        onClick={() => onChange(chip.type)}
             aria-pressed={active}
-            className={`shrink-0 border px-3.5 py-1.5 text-xs transition-colors ${
+            className={`shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium transition-colors ${
               active
-                ? "border-vault-green bg-vault-green/10 text-vault-green"
+                ? "border-vault-green/70 bg-vault-green/10 text-vault-green"
                 : "border-border text-text-muted hover:border-vault-green/60 hover:text-text"
             }`}
           >

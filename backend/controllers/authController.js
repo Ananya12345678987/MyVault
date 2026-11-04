@@ -4,9 +4,13 @@ const {
   verifyPassword,
   generateVaultSalt,
   deriveVaultKey,
-  hashVaultKeyVerifier,
+    hashVaultKeyVerifier,
 } = require("../security/crypto");
-const { signAccessToken, signRefreshToken } = require("../security/tokens");
+const {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} = require("../security/tokens");
 const { registerSchema, loginSchema } = require("../validators/authValidators");
 
 const COOKIE_OPTS = {
@@ -141,4 +145,30 @@ function issueSessionCookies(res, userId) {
   });
 }
 
-module.exports = { register, login, logout, me };
+/**
+ * POST /api/auth/refresh
+ * Trades a valid refresh token (7 days) for a fresh access token (15 min),
+ * so you are not logged out every 15 minutes. It never touches the vault
+ * session: the vault stays locked or unlocked exactly as it was.
+ */
+async function refresh(req, res) {
+  const token = req.cookies?.refreshToken;
+  if (!token) return res.status(401).json({ error: "Not authenticated." });
+
+  try {
+    const payload = verifyRefreshToken(token);
+    if (payload.type !== "refresh") throw new Error("Wrong token type");
+
+    const user = await User.findById(payload.sub);
+    if (!user || !user.isActive) throw new Error("Unknown user");
+
+    issueSessionCookies(res, user._id.toString());
+    return res.json({ refreshed: true });
+  } catch {
+    res.clearCookie("accessToken", COOKIE_OPTS);
+    res.clearCookie("refreshToken", COOKIE_OPTS);
+    return res.status(401).json({ error: "Session expired. Please sign in again." });
+  }
+}
+
+module.exports = { register, login, logout, me, refresh };

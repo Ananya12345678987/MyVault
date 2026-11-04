@@ -5,8 +5,9 @@ import * as api from "../lib/api";
 import {
   ICON_BY_TYPE,
   TYPE_LABEL,
-  PERSON_GROUP_LABEL,
+    PERSON_GROUP_LABEL,
   formatDate,
+  styleFor,
 } from "../lib/categories";
 import { CopyButton, RevealButton } from "./SecretControls";
 import { SECRET_MASK, copyToClipboard } from "../lib/secrets";
@@ -194,11 +195,11 @@ function Body({ item, onNeedUnlock }) {
       return (
         <div className="space-y-2">
           {preview.description && (
-            <p className="line-clamp-1 text-xs text-text-muted">{preview.description}</p>
+                      <p className="line-clamp-1 text-xs text-text-muted">{preview.description}</p>
           )}
-          <pre className="max-h-[4.5rem] overflow-hidden whitespace-pre-wrap break-all border border-border bg-bg px-2.5 py-2 font-mono text-[11px] leading-4 text-text-muted">
+          <pre className="max-h-[4.5rem] overflow-hidden whitespace-pre-wrap break-all rounded-lg border border-border bg-bg px-2.5 py-2 font-mono text-[11px] leading-4 text-text-muted">
             {preview.code || "—"}
-          </pre>
+          </pre>  
         </div>
       );
 
@@ -238,9 +239,9 @@ function StarButton({ starred, onClick }) {
         onClick();
       }}
       aria-label={starred ? "Remove star" : "Add star"}
-      aria-pressed={starred}
+            aria-pressed={starred}
       title={starred ? "Remove star" : "Star"}
-      className={`flex h-7 w-7 items-center justify-center transition-colors ${
+      className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors hover:bg-white/5 ${
         starred ? "text-amber" : "text-text-muted hover:text-amber"
       }`}
     >
@@ -301,17 +302,17 @@ export default function ItemCard({
         if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
           event.preventDefault();
           onOpen(item._id);
-        }
+                }
       }}
-      className="flex min-h-[11rem] cursor-pointer flex-col border border-border bg-surface p-4 transition-colors hover:border-vault-green focus:outline-none focus-visible:border-vault-green"
+      className={`group flex min-h-[11rem] cursor-pointer flex-col rounded-2xl border border-border bg-surface p-4 transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-alt focus:outline-none focus-visible:border-vault-green ${styleFor(item.type).ring}`}
     >
       <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-border bg-surface-alt">
-          {Icon && <Icon size={16} className="text-vault-green" />}
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${styleFor(item.type).tile}`}>
+          {Icon && <Icon size={18} />}
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium" title={item.title}>
+          <p className="truncate text-sm font-semibold" title={item.title}>
             {item.title}
           </p>
           <p className="mt-0.5 truncate text-xs text-text-muted">{subtitle}</p>
@@ -325,17 +326,17 @@ export default function ItemCard({
               type="button"
               onClick={() => setMenuOpen((open) => !open)}
               aria-label="More actions"
-              aria-haspopup="menu"
+                            aria-haspopup="menu"
               aria-expanded={menuOpen}
-              className="flex h-7 w-7 items-center justify-center text-lg leading-none text-text-muted transition-colors hover:text-text"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-lg leading-none text-text-muted transition-colors hover:bg-white/5 hover:text-text"
             >
               <span aria-hidden="true">⋮</span>
             </button>
 
             {menuOpen && (
-              <div
+                            <div
                 role="menu"
-                className="absolute right-0 top-full z-20 mt-1 w-44 border border-border bg-surface py-1 shadow-lg shadow-black/60"
+                className="absolute right-0 top-full z-20 mt-1 w-44 overflow-hidden rounded-xl border border-border bg-surface py-1 shadow-xl shadow-black/70"
               >
                 <button
                   type="button"
@@ -367,11 +368,17 @@ export default function ItemCard({
 
       <div className="mt-4 flex-1">
         <Body item={item} onNeedUnlock={onNeedUnlock} />
-      </div>
+            </div>
 
-      <p className="mt-4 font-mono text-[11px] text-text-muted">
-        Updated: {formatDate(item.updatedAt)}
-      </p>
+      <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3 font-mono text-[11px] text-text-muted">
+        <span>Updated: {formatDate(item.updatedAt)}</span>
+        {item.sensitive && (
+          <span className="inline-flex items-center gap-1 text-vault-green/80" title="Encrypted: needs your master password">
+            <Lock size={11} aria-hidden="true" />
+            Protected
+          </span>
+        )}
+      </div>
     </div>
   );
 }

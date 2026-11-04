@@ -15,23 +15,46 @@ const crypto = require("crypto");
 
 const sessions = new Map();
 
+// The vault locks itself after this long WITHOUT activity. Every vault
+// request counts as activity, so while you are working it stays unlocked.
+const IDLE_MS = (Number(process.env.VAULT_IDLE_MINUTES) || 30) * 60 * 1000;
+
+// Remove sessions nobody has used for a while (so keys don't sit in memory).
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, session] of sessions) {
+    if (now - session.lastSeen > IDLE_MS) sessions.delete(id);
+  }
+}, 60 * 1000).unref();
+
 function createVaultSession(userId, vaultKey) {
   const vaultSessionId = crypto.randomBytes(32).toString("hex");
 
   sessions.set(vaultSessionId, {
     userId: userId.toString(),
-    vaultKey,
+        vaultKey,
     createdAt: Date.now(),
+    lastSeen: Date.now(),
   });
 
   return vaultSessionId;
 }
 
 function getVaultSession(vaultSessionId) {
-  if (!vaultSessionId) return null;
+   if (!vaultSessionId) return null;
 
-  return sessions.get(vaultSessionId) || null;
-}
+  const session = sessions.get(vaultSessionId);
+  if (!session) return null;
+
+  // Idle too long: lock it.
+  if (Date.now() - session.lastSeen > IDLE_MS) {
+    sessions.delete(vaultSessionId);
+    return null;
+  }
+
+  session.lastSeen = Date.now(); // activity keeps the vault unlocked
+  return session;
+} 
 
 function getVaultKey(vaultSessionId, userId) {
   const session = getVaultSession(vaultSessionId);

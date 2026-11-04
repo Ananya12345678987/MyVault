@@ -30,8 +30,23 @@ export const CATEGORIES = [
   { label: "Notes", type: "note", icon: FileText },
   { label: "Code", type: "snippet", icon: Code2 },
   { label: "People", type: "person", icon: UserRound },
-  { label: "Resources", type: "resource", icon: Link2 },
+    { label: "Resources", type: "resource", icon: Link2 },
 ];
+
+// Each type gets its own tint so cards are recognisable at a glance.
+// (Full class names on purpose: Tailwind only keeps classes it can read.)
+export const TYPE_STYLE = {
+  password: { tile: "bg-emerald-500/15 text-emerald-300", ring: "hover:border-emerald-400/40" },
+  secret: { tile: "bg-cyan-500/15 text-cyan-300", ring: "hover:border-cyan-400/40" },
+  env: { tile: "bg-violet-500/15 text-violet-300", ring: "hover:border-violet-400/40" },
+  dbCredential: { tile: "bg-teal-500/15 text-teal-300", ring: "hover:border-teal-400/40" },
+  note: { tile: "bg-blue-500/15 text-blue-300", ring: "hover:border-blue-400/40" },
+  snippet: { tile: "bg-sky-500/15 text-sky-300", ring: "hover:border-sky-400/40" },
+  person: { tile: "bg-fuchsia-500/15 text-fuchsia-300", ring: "hover:border-fuchsia-400/40" },
+  resource: { tile: "bg-indigo-500/15 text-indigo-300", ring: "hover:border-indigo-400/40" },
+};
+export const styleFor = (type) =>
+  TYPE_STYLE[type] || { tile: "bg-vault-green/15 text-vault-green", ring: "hover:border-vault-green/40" };
 
 export const ICON_BY_TYPE = Object.fromEntries(
   CATEGORIES.filter((c) => !VIEW_TYPES.includes(c.type)).map((c) => [c.type, c.icon])

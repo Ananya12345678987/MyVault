@@ -1,14 +1,38 @@
 const API_BASE = "/api";
 
-async function request(endpoint, options = {}) {
+// One refresh at a time, even if several requests fail together.
+let refreshing = null;
+
+function refreshSession() {
+  if (!refreshing) {
+    refreshing = fetch(`${API_BASE}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+    })
+      .then((r) => r.ok)
+      .catch(() => false)
+      .finally(() => {
+        refreshing = null;
+      });
+  }
+  return refreshing;
+}
+
+async function request(endpoint, options = {}, retried = false) {
   const response = await fetch(`${API_BASE}${endpoint}`, {
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {}),
     },
-    ...options,
+        ...options,
   });
+
+  // The 15-minute login token ran out: get a new one quietly and retry
+  // once, instead of throwing the user out. (Login/refresh calls skip this.)
+  if (response.status === 401 && !retried && !endpoint.startsWith("/auth/")) {
+    if (await refreshSession()) return request(endpoint, options, true);
+  }
 
   let data = null;
 
@@ -23,8 +47,14 @@ async function request(endpoint, options = {}) {
       data?.error || "Something went wrong. Please try again."
     );
 
-    error.status = response.status;
+        error.status = response.status;
     error.data = data;
+
+    // The server locked the vault (idle timeout or restart): tell the app
+    // so the "Vault locked" label is true again.
+    if (response.status === 423) {
+      window.dispatchEvent(new Event("vault:locked"));
+    }
 
     throw error;
   }

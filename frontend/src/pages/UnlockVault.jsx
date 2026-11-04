@@ -27,13 +27,13 @@ const { user, unlock, error, clearError } = useAuth();
     }
   }
 
-    return (
+        return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-      <div className="w-full max-w-md rounded-sm border border-border bg-surface p-8">
+      <div className="w-full max-w-md rounded-3xl border border-border bg-surface p-8 shadow-2xl shadow-black">
 
           {/* Brand */}
-          <div className="mb-12 flex items-center justify-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center border border-vault-green">
+          <div className="mb-8 flex items-center justify-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-vault-green/15">
               <LockKeyhole size={18} className="text-vault-green" />
             </div>
 
@@ -42,15 +42,16 @@ const { user, unlock, error, clearError } = useAuth();
             </span>
           </div>
 
+        
           {/* Header */}
-          <div className="mb-10 text-center">
+          <div className="mb-8 text-center">
             <p className="mb-4 font-mono text-xs uppercase tracking-[0.3em] text-vault-green">
               VAULT SECURITY
             </p>
 
-            <h1 className="font-heading text-4xl font-semibold tracking-tight">
-              Unlock your vault.
-            </h1>
+            <h1 className="font-heading text-3xl font-semibold tracking-tight">
+              Unlock your vault
+            </h1>  
 
             <p className="mt-4 text-sm leading-6 text-text-muted">
               Your account is authenticated, but your vault is still locked.
@@ -103,9 +104,9 @@ const { user, unlock, error, clearError } = useAuth();
               </div>
             </div>
 
-            {/* Error */}
+                        {/* Error */}
             {error && (
-              <div className="border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+              <div className="rounded-xl border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">
                 {error}
               </div>
             )}
@@ -124,8 +125,9 @@ const { user, unlock, error, clearError } = useAuth();
                         </div>
           </form>
 
+          
           {/* Account information */}
-          <div className="mt-10 border-t border-border pt-6 text-center">
+          <div className="mt-8 border-t border-border pt-5 text-center">
             <p className="text-xs text-text-muted">
               Signed in as
             </p>
@@ -135,9 +137,8 @@ const { user, unlock, error, clearError } = useAuth();
             </p>
           </div>
 
-          {/* Security note */}
-          <p className="mt-8 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
-            Master password unlocks vault access
+          <p className="mt-5 text-center text-xs leading-5 text-text-muted">
+            The vault locks itself after 30 minutes without activity.
           </p>
 
         </div>

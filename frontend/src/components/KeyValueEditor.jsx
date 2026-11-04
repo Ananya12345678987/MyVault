@@ -21,11 +21,12 @@ const REVEAL_FOR_MS = 30000;
 const GRID =
   "md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.6fr)_minmax(0,1.1fr)_4.75rem]";
 
+
 const CELL =
-  "w-full border border-border bg-bg px-3 py-2 text-sm text-text outline-none transition-colors placeholder:text-text-muted focus:border-vault-green";
+  "w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text outline-none transition-colors placeholder:text-text-muted focus:border-vault-green";
 
 const ICON_BUTTON =
-  "mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center border border-border bg-surface-alt text-text-muted transition-colors hover:border-vault-green hover:text-vault-green";
+  "mt-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-alt text-text-muted transition-colors hover:border-vault-green hover:text-vault-green";
 
 function Svg({ children }) {
   return (
@@ -171,8 +172,9 @@ export default function KeyValueEditor({
         <span />
       </div>
 
+      
       {rows.length === 0 && (
-        <p className="border border-dashed border-border px-4 py-5 text-sm text-text-muted">
+        <p className="rounded-xl border border-dashed border-border px-4 py-5 text-sm text-text-muted">
           No fields yet. Use “{addLabel}” to create the first one.
         </p>
       )}
@@ -186,7 +188,7 @@ export default function KeyValueEditor({
           return (
             <li
               key={row.id}
-              className="border border-border bg-surface-alt/40 p-3 md:border-0 md:bg-transparent md:p-0"
+              className="rounded-xl border border-border bg-surface-alt/40 p-3 md:border-0 md:bg-transparent md:p-0"
             >
               <div className={`grid gap-2 md:items-start ${GRID}`}>
                 <div>
@@ -355,7 +357,7 @@ export default function KeyValueEditor({
                           type="button"
                           onClick={() => removeInfo(row, index)}
                           aria-label={`Remove info ${index} for ${label}`}
-                          className="h-[2.375rem] w-8 border border-border text-text-muted transition-colors hover:border-danger hover:text-danger"
+                          className="h-[2.375rem] w-8 rounded-lg border border-border text-text-muted transition-colors hover:border-danger hover:text-danger"
                         >
                           <span aria-hidden="true">×</span>
                         </button>
@@ -380,7 +382,7 @@ export default function KeyValueEditor({
       <button
         type="button"
         onClick={add}
-        className="mt-3 inline-flex items-center gap-2 border border-vault-green/60 px-3.5 py-2 text-sm text-vault-green transition-colors hover:bg-vault-green/10"
+        className="mt-3 inline-flex items-center gap-2 rounded-xl border border-vault-green/60 px-3.5 py-2 text-sm text-vault-green transition-colors hover:bg-vault-green/10"
       >
         <span aria-hidden="true" className="text-base leading-none">
           +

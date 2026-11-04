@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 
-import { CATEGORIES, VIEW_TYPES } from "../lib/categories";
+import { CATEGORIES, VIEW_TYPES, styleFor } from "../lib/categories";
 
 // Views where adding something makes no sense.
 const NO_ADD = ["starred", "archived", "trash"];
@@ -45,9 +45,9 @@ export default function AddMenu({ activeCategory, onAdd }) {
       </button>
 
       {isAll && open && (
-        <div
+                <div
           role="menu"
-          className="absolute right-0 top-full z-20 mt-2 w-56 border border-border bg-surface py-1 shadow-lg shadow-black/60"
+          className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-xl border border-border bg-surface py-1 shadow-xl shadow-black/70"
         >
           <p className="px-4 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
             Add to
@@ -63,9 +63,9 @@ export default function AddMenu({ activeCategory, onAdd }) {
                   setOpen(false);
                   onAdd(category.type);
                 }}
-                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-text-muted transition-colors hover:bg-surface-alt hover:text-text"
+                                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-text-muted transition-colors hover:bg-surface-alt hover:text-text"
               >
-                <Icon size={15} className="text-vault-green" />
+                <Icon size={15} className={styleFor(category.type).tile.split(" ")[1]} />
                 {category.label}
               </button>
             );

@@ -50,7 +50,16 @@ export function AuthProvider({ children }) {
       }
     }
 
+    
     restoreSession();
+  }, []);
+
+  // api.js fires this when the server says the vault is locked (idle
+  // timeout or server restart), so the screen never claims "unlocked" wrongly.
+  useEffect(() => {
+    const onLocked = () => setVaultUnlocked(false);
+    window.addEventListener("vault:locked", onLocked);
+    return () => window.removeEventListener("vault:locked", onLocked);
   }, []);
 
   /*

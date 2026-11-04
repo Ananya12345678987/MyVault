@@ -1,8 +1,10 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 
+import { Lock, LockOpen } from "lucide-react";
+
 import * as api from "../lib/api";
 import { EDITORS } from "../editors";
-import { ICON_BY_TYPE } from "../lib/categories";
+import { ICON_BY_TYPE, styleFor } from "../lib/categories";
 import { formatDateTime } from "../lib/dates";
 import UnlockVault from "../pages/UnlockVault";
 
@@ -139,16 +141,16 @@ export default function ItemEditorModal({ mode, type, itemId, onClose, onSaved }
     >
       <div
         role="dialog"
+        
         aria-modal="true"
         aria-labelledby="editor-title"
-        className="w-full max-w-4xl border border-border bg-surface"
+        className="w-full max-w-4xl overflow-hidden rounded-3xl border border-border bg-surface shadow-2xl shadow-black"
       >
         {/* Header */}
         <div className="flex items-center gap-4 border-b border-border px-6 py-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center border border-border bg-surface-alt">
-            {Icon && <Icon size={20} className="text-vault-green" />}
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${styleFor(type).tile}`}>
+            {Icon && <Icon size={20} />}
           </div>
-
           <div className="min-w-0 flex-1">
             <h2 id="editor-title" className="truncate font-heading text-xl font-semibold">
               {isEdit ? draft?.title || config.label : `Add ${config.label}`}
@@ -160,7 +162,7 @@ export default function ItemEditorModal({ mode, type, itemId, onClose, onSaved }
             type="button"
             onClick={requestClose}
             aria-label="Close"
-            className="flex h-9 w-9 items-center justify-center text-xl text-text-muted transition-colors hover:text-text"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-lg text-text-muted transition-colors hover:bg-white/5 hover:text-text"
           >
             <span aria-hidden="true">✕</span>
           </button>
@@ -170,8 +172,9 @@ export default function ItemEditorModal({ mode, type, itemId, onClose, onSaved }
         <div className="px-6 py-6">
           {loading && !loadError && <p className="text-sm text-text-muted">Loading…</p>}
 
+          
           {loadError && (
-            <div role="alert" className="border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger">
+            <div role="alert" className="rounded-xl border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger">
               {loadError}
             </div>
           )}
@@ -182,35 +185,65 @@ export default function ItemEditorModal({ mode, type, itemId, onClose, onSaved }
                 <Body draft={draft} setDraft={setDraft} />
               </Suspense>
 
+              
               <div>
-                <label className="flex cursor-pointer items-start gap-3 border border-border bg-surface-alt/40 px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={draft.sensitive}
-                    onChange={(e) => setDraft((d) => ({ ...d, sensitive: e.target.checked }))}
-                    className="mt-1 h-4 w-4 accent-[#34A67E]"
-                  />
-                  <span className="text-sm">
-                    <span className="font-medium">Require master password to view this item</span>
-                    <span className="mt-0.5 block text-xs leading-5 text-text-muted">
-                      Encrypts everything in this item. It can only be opened while your vault is
-                      unlocked.
-                    </span>
-                  </span>
-                </label>
+                <p className="mb-2 text-sm font-medium">How should this item be stored?</p>
+                <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Protection">
+                  {[
+                    {
+                      value: true,
+                      title: "Protected",
+                      text: "Encrypted. You need your master password to open it.",
+                      icon: Lock,
+                    },
+                    {
+                      value: false,
+                      title: "Open",
+                      text: "Stored as plain text. Opens without the master password.",
+                      icon: LockOpen,
+                    },
+                  ].map((choice) => {
+                    const active = Boolean(draft.sensitive) === choice.value;
+                    const ChoiceIcon = choice.icon;
+                    return (
+                      <button
+                        key={choice.title}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => setDraft((d) => ({ ...d, sensitive: choice.value }))}
+                        className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                          active
+                            ? "border-vault-green/70 bg-vault-green/10"
+                            : "border-border hover:border-vault-green/40"
+                        }`}
+                      >
+                        <ChoiceIcon
+                          size={18}
+                          className={`mt-0.5 shrink-0 ${active ? "text-vault-green" : "text-text-muted"}`}
+                        />
+                        <span className="text-sm">
+                          <span className="block font-medium">{choice.title}</span>
+                          <span className="mt-0.5 block text-xs leading-5 text-text-muted">{choice.text}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
 
                 {!draft.sensitive && hasProtectedField && (
                   <p className="mt-2 text-xs leading-5 text-amber">
-                    This item is not encrypted. Protected values are only hidden on screen, but
-                    they are stored as plain text.
+                    This item is open, so hidden values (the eye icon) are only masked on screen.
+                    They are stored as plain text. Choose Protected to encrypt them.
                   </p>
                 )}
               </div>
             </div>
           )}
 
+          
           {error && (
-            <div role="alert" className="mt-6 border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger">
+            <div role="alert" className="mt-6 rounded-xl border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger">
               {error}
             </div>
           )}
@@ -233,7 +266,7 @@ export default function ItemEditorModal({ mode, type, itemId, onClose, onSaved }
                     type="button"
                     onClick={moveToTrash}
                     disabled={busy}
-                    className="inline-flex items-center justify-center border border-danger/60 px-5 py-3 font-medium text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
+                    className="btn-danger"
                   >
                     Delete
                   </button>

@@ -25,8 +25,10 @@ const {
   emptyTrash,
 } = require("../services/vaultItemService");
 
-const VAULT_SESSION_COOKIE = "vaultSessionId";
+  const VAULT_SESSION_COOKIE = "vaultSessionId";
 
+// The browser keeps this cookie for 12 hours; the real lock timer is the
+// idle timeout in security/vaultSessionStore.js (default 30 minutes).
 const COOKIE_OPTS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
@@ -61,9 +63,9 @@ async function unlockVault(req, res, next) {
       destroyVaultSession(existingSessionId, req.userId);
     }
 
-    const vaultSessionId = createVaultSession(req.userId, vaultKey);
+        const vaultSessionId = createVaultSession(req.userId, vaultKey);
 
-    res.cookie(VAULT_SESSION_COOKIE, vaultSessionId, { ...COOKIE_OPTS, maxAge: 15 * 60 * 1000 });
+    res.cookie(VAULT_SESSION_COOKIE, vaultSessionId, { ...COOKIE_OPTS, maxAge: 12 * 60 * 60 * 1000 });
 
     return res.json({ unlocked: true });
   } catch (err) {

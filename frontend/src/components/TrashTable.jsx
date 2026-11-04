@@ -1,4 +1,4 @@
-import { ICON_BY_TYPE, TYPE_LABEL, formatDate } from "../lib/categories";
+import { ICON_BY_TYPE, TYPE_LABEL, formatDate, styleFor } from "../lib/categories";
 
 /*
  * Trash is a table (not cards): Name / Type / Deleted At / Actions, with
@@ -22,16 +22,17 @@ export default function TrashTable({ items, onRestore, onDeleteForever, onEmptyT
     }
   }
 
+  
   return (
-    <div className="mt-8 border border-border bg-surface">
+    <div className="mt-8 overflow-hidden rounded-2xl border border-border bg-surface">
       <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-text-muted">
           Items stay in Trash until you restore them or delete them permanently.
         </p>
         <button
-          type="button"
+                    type="button"
           onClick={confirmEmpty}
-          className="self-start border border-danger/60 px-3 py-1.5 text-xs font-medium text-danger transition-colors hover:bg-danger/10 sm:self-auto"
+          className="self-start rounded-lg border border-danger/60 px-3 py-1.5 text-xs font-medium text-danger transition-colors hover:bg-danger/10 sm:self-auto"
         >
           Empty Trash
         </button>
@@ -52,10 +53,10 @@ export default function TrashTable({ items, onRestore, onDeleteForever, onEmptyT
               const Icon = ICON_BY_TYPE[item.type];
               return (
                 <tr key={item._id} className="border-b border-border last:border-b-0">
-                  <td className="px-4 py-3">
+                    <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center border border-border bg-surface-alt">
-                        {Icon && <Icon size={14} className="text-vault-green" />}
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${styleFor(item.type).tile}`}>
+                        {Icon && <Icon size={14} />}
                       </div>
                       <span className="truncate">{item.title}</span>
                     </div>
@@ -67,16 +68,16 @@ export default function TrashTable({ items, onRestore, onDeleteForever, onEmptyT
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
                       <button
-                        type="button"
+                                               type="button"
                         onClick={() => onRestore(item)}
-                        className="border border-vault-green/60 px-3 py-1.5 text-xs font-medium text-vault-green transition-colors hover:bg-vault-green/10"
+                        className="rounded-lg border border-vault-green/60 px-3 py-1.5 text-xs font-medium text-vault-green transition-colors hover:bg-vault-green/10"
                       >
-                        Restore
+                        Restore 
                       </button>
                       <button
-                        type="button"
+                                                type="button"
                         onClick={() => confirmDelete(item)}
-                        className="border border-danger/60 px-3 py-1.5 text-xs font-medium text-danger transition-colors hover:bg-danger/10"
+                        className="rounded-lg border border-danger/60 px-3 py-1.5 text-xs font-medium text-danger transition-colors hover:bg-danger/10"
                       >
                         Delete
                       </button>

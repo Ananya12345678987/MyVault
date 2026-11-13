@@ -6,8 +6,9 @@
 
 :root {
   font-family: 'IBM Plex Sans', sans-serif;
-  color: #f5f5f5;
-  background: #000000;
+    color: #2a3025;
+  background: #f4f2ea;
+  color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -27,11 +28,10 @@ body,
 body {
     min-width: 320px;
   min-height: 100vh;
-  background:
-    radial-gradient(900px 400px at 85% -10%, rgba(45, 212, 160, 0.06), transparent 60%),
-    #000000;
-  color: #f5f5f5;
+    background: #f4f2ea;
+  color: #2a3025;
 }
+
 
 button,
 input,
@@ -46,8 +46,8 @@ button {
 
 
 ::selection {
-  background: #2dd4a0;
-  color: #000000;
+    background: #b9c8a8;
+  color: #2a3025;
 }
 
 /* Slim dark scrollbars instead of the bright default ones. */

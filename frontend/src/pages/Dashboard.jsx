@@ -2,25 +2,24 @@ import { useState, useEffect, useMemo } from "react";
 import {
   Shield,
   Lock,
-    Plus,
+  Plus,
   Search,
+  Settings,
   LogOut,
+  ChevronRight,
   Menu,
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
 import * as api from "../lib/api";
-import AddItemModal from "../components/AddItemModal";
 import ItemCard from "../components/ItemCard";
 import TrashTable from "../components/TrashTable";
 import AddMenu from "../components/AddMenu";
-import CategoryChips from "../components/CategoryChips";
 import UnlockVault from "./UnlockVault";
 import ItemEditorModal from "../components/ItemEditorModal";
 import { hasEditor } from "../editors";
 import PeopleGroups from "../components/PeopleGroups";
-import { CATEGORIES, VIEW_TYPES, emptyTitleFor, emptyHintFor, styleFor } from "../lib/categories";
-import ItemDetailModal from "../components/ItemDetailModal";
+import { CATEGORIES, VIEW_TYPES, emptyTitleFor, emptyHintFor } from "../lib/categories";
 
 const categories = CATEGORIES;
 
@@ -35,7 +34,6 @@ function Dashboard() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all"); // chips under the search box
-  const [addType, setAddType] = useState(null);
   const [editor, setEditor] = useState(null); // { mode: "create" | "edit", type, id }
   const [unlockRequest, setUnlockRequest] = useState(null);
   const [actionError, setActionError] = useState("");
@@ -48,9 +46,7 @@ function Dashboard() {
   // Adding makes no sense inside Starred / Archived / Trash.
   const canAdd = !["starred", "archived", "trash"].includes(activeCategory);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showAddModal, setShowAddModal] = useState(false);
 
-  const [openItemId, setOpenItemId] = useState(null);
 
 
   async function fetchItems({ silent = false } = {}) {
@@ -122,18 +118,14 @@ function Dashboard() {
       setEditor({ mode: "create", type });
       return;
     }
-    setAddType(type);
-    setShowAddModal(true);
   }
 
   const refresh = () => fetchItems({ silent: true });
 
-  // A category with its own editor opens in it; the rest still use the
-  // older detail view until their editors exist.
+  // Every category opens in its own editor.
   function openItem(id) {
     const item = items.find((i) => i._id === id);
     if (item && hasEditor(item.type)) setEditor({ mode: "edit", type: item.type, id });
-    else setOpenItemId(id);
   }
 
   const toggleStar = (item) =>
@@ -178,31 +170,9 @@ function Dashboard() {
       await refresh();
     });
 
-  function handleItemCreated(newItem) {
-    setItems((prev) => [newItem, ...prev]);
-    // Re-fetch too, since the create response is intentionally minimal
-    // (id/type/title/sensitive/createdAt) and the list view benefits
-    // from the fuller set of fields listVaultItems returns.
-    fetchItems();
-  }
 
   return (
     <div className="min-h-screen bg-bg text-text">
-               {showAddModal && (
-        <AddItemModal defaultType={addType} onClose={() => setShowAddModal(false)} onCreated={handleItemCreated} />
-      )}
-  
-      {openItemId && (
-        <ItemDetailModal
-          itemId={openItemId}
-          onClose={() => setOpenItemId(null)}
-          onUpdated={() => fetchItems()}
-          onDeleted={() => {
-            setOpenItemId(null);
-            fetchItems();
-          }}
-        />
-      )}
 
       {unlockRequest && (
         <UnlockVault
@@ -234,73 +204,81 @@ function Dashboard() {
   <div
     className="fixed inset-0 z-30 bg-black/60 lg:hidden"
     onClick={() => setMobileNavOpen(false)}
-          />
+  />
 )}
-<aside className={`fixed left-0 top-0 z-40 h-screen w-60 flex flex-col border-r border-border bg-bg transition-transform duration-200 lg:translate-x-0 ${mobileNavOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="flex h-[72px] items-center border-b border-border px-5">
+<aside className={`fixed left-0 top-0 z-40 h-screen w-64 flex flex-col border-r border-border bg-bg transition-transform duration-200 lg:translate-x-0 ${mobileNavOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="flex h-20 items-center border-b border-border px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-vault-green/15">
-              <Shield size={18} className="text-vault-green" />
+            <div className="flex h-9 w-9 items-center justify-center border border-vault-green">
+              <Shield size={17} className="text-vault-green" />
             </div>
             <div>
-              <p className="font-heading text-lg font-semibold leading-none">MyVault</p>
-              <p className="mt-1 text-[11px] text-text-muted">Private storage</p>
+              <p className="font-heading font-semibold">MyVault</p>
+              <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-text-muted">
+                PRIVATE STORAGE
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 py-5">
-          {[
-            { label: "Vault", items: categories.filter((c) => VIEW_TYPES.includes(c.type)) },
-            { label: "Categories", items: categories.filter((c) => !VIEW_TYPES.includes(c.type)) },
-          ].map((group) => (
-            <div key={group.label} className="mb-6">
-              <p className="mb-2 px-3 text-[11px] font-medium uppercase tracking-[0.14em] text-text-muted/70">
-                {group.label}
-              </p>
-              <nav className="space-y-0.5">
-                {group.items.map((category) => {
-                  const Icon = category.icon;
-                  const isActive = category.type === activeCategory;
-                  const tint = VIEW_TYPES.includes(category.type)
-                    ? "text-vault-green"
-                    : styleFor(category.type).tile.split(" ")[1];
+        <div className="flex-1 overflow-y-auto px-4 py-6">
+          <p className="mb-3 px-3 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+            Vault
+          </p>
 
-                  return (
-                    <button
-                      key={category.type}
-                      type="button"
-                      onClick={() => {
-                        setActiveCategory(category.type);
-                        setTypeFilter("all");
-                        setActionError("");
-                        setMobileNavOpen(false);
-                      }}
-                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
-                        isActive
-                          ? "bg-vault-green/10 font-medium text-vault-green"
-                          : "text-text-muted hover:bg-surface-alt hover:text-text"
-                      }`}
-                    >
-                      <Icon size={17} className={isActive ? "text-vault-green" : tint} />
-                      <span>{category.label}</span>
-                    </button>
-                  );
-                })}
-              </nav>
-            </div>
-          ))}
+          <nav className="space-y-1">
+            {categories.map((category) => {
+              const Icon = category.icon;
+              const isActive = category.type === activeCategory;
+
+              return (
+                <button
+                  key={category.type}
+                  type="button"
+                 onClick={() => {
+  setActiveCategory(category.type);
+  setTypeFilter("all");
+  setActionError("");
+  setMobileNavOpen(false);
+}} 
+                  className={`group flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${category.type === "password" ? "!mt-5 relative before:absolute before:-top-2.5 before:left-0 before:right-0 before:border-t before:border-border" : ""} ${
+                    isActive ? "bg-surface-alt text-text" : "text-text-muted hover:bg-surface hover:text-text"
+                  }`}
+                >
+                  <Icon size={17} className={isActive ? "text-vault-green" : "text-text-muted"} />
+                  <span>{category.label}</span>
+                  {isActive && <ChevronRight size={14} className="ml-auto text-vault-green" />}
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="my-7 border-t border-border" />
+
+          <p className="mb-3 px-3 font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+            Account
+          </p>
+
+          <nav className="space-y-1">
+            <button
+              type="button"
+              className="flex w-full items-center gap-3 px-3 py-2.5 text-sm text-text-muted transition-colors hover:bg-surface hover:text-text"
+            >
+              <Settings size={17} />
+              Settings
+            </button>
+          </nav>
         </div>
 
         <div className="border-t border-border p-4">
-                    <div className="mb-3 px-2">
+          <div className="mb-3 px-2">
             <p className="truncate font-mono text-xs text-text">{user?.email}</p>
-            <p className={`mt-1 flex items-center gap-1.5 text-[11px] ${vaultUnlocked ? "text-vault-green" : "text-amber"}`}><span className={`h-1.5 w-1.5 rounded-full ${vaultUnlocked ? "bg-vault-green" : "bg-amber"}`} />{vaultUnlocked ? "Vault unlocked" : "Vault locked"}</p>
+            <p className={`mt-1 text-[11px] ${vaultUnlocked ? "text-vault-green" : "text-amber"}`}>{vaultUnlocked ? "Vault unlocked" : "Vault locked"}</p>
           </div>
           <button
             type="button"
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-sm text-text-muted transition-colors hover:bg-surface-alt hover:text-text"
+            className="flex w-full items-center gap-3 px-2 py-2 text-sm text-text-muted transition-colors hover:text-text"
           >
             <LogOut size={16} />
             Sign out
@@ -308,12 +286,11 @@ function Dashboard() {
         </div>
       </aside>
 
-    
       {/* Main */}
-            <main className="lg:pl-60 w-full">
-        <header className="sticky top-0 z-10 flex h-[72px] items-center justify-between border-b border-border bg-bg/95 px-6 backdrop-blur lg:px-10">
+            <main className="lg:pl-64 w-full">
+        <header className="sticky top-0 z-10 flex h-20 items-center justify-between border-b border-border bg-bg/95 px-6 backdrop-blur lg:px-10">
           <div className="flex items-center gap-3">
-            <button  
+            <button
   type="button"
   onClick={() => setMobileNavOpen(true)}
   className="mr-1 text-text-muted hover:text-text lg:hidden"
@@ -325,31 +302,30 @@ function Dashboard() {
               <input
                 type="search"
                 value={searchQuery}
-                               onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search your vault..."
-                className="w-full rounded-xl border border-border bg-surface py-2.5 pl-10 pr-4 text-sm text-text outline-none placeholder:text-text-muted focus:border-vault-green"
+                className="w-full border border-border bg-surface py-2.5 pl-10 pr-4 text-sm text-text outline-none placeholder:text-text-muted focus:border-vault-green"
               />
-            </div> 
+            </div>
           </div>
 
           <button
-                        type="button"
+            type="button"
             onClick={vaultUnlocked ? handleLock : () => setUnlockRequest({})}
-            className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${
-              vaultUnlocked
-                ? "border-vault-green/40 bg-vault-green/10 text-vault-green hover:bg-vault-green/15"
-                : "border-amber/40 bg-amber/10 text-amber hover:bg-amber/15"
-            }`}
+            className="flex items-center gap-2 border border-border bg-surface px-4 py-2.5 text-sm font-medium transition-colors hover:border-vault-green hover:text-vault-green"
           >
             <Lock size={16} />
             {vaultUnlocked ? "Lock vault" : "Unlock vault"}
           </button>
-                    </header>
+        </header>
 
-        <div className="mx-auto max-w-7xl px-6 py-8 lg:px-10">
-          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+        <div className="mx-auto max-w-7xl px-6 py-10 lg:px-10">
+          <div className="flex flex-col justify-between gap-5 border-b border-border pb-8 sm:flex-row sm:items-end">
             <div>
-              <h1 className="font-heading text-3xl font-semibold tracking-tight">
+              <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.3em] text-vault-green">
+                SECURE STORAGE
+              </p>
+              <h1 className="font-heading text-4xl font-semibold tracking-tight">
                 {activeCategory === "all" ? "All items" : categories.find((c) => c.type === activeCategory)?.label}
               </h1>
               <p className="mt-2 text-sm text-text-muted">
@@ -360,31 +336,29 @@ function Dashboard() {
 <AddMenu activeCategory={activeCategory} onAdd={openAdd} />
           </div>
 
-          {isView && activeCategory !== "trash" && (
-            <CategoryChips value={typeFilter} onChange={setTypeFilter} />
-                      )}
+          {loading && <p className="mt-8 text-text-muted text-sm">Loading…</p>}
 
-          {loading && <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{[0, 1, 2, 3].map((n) => <div key={n} className="h-44 animate-pulse rounded-2xl border border-border bg-surface" />)}</div>}
-
-          {loadError && <p className="mt-8 rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">{loadError}</p>}
+          {loadError && <p className="mt-8 text-danger text-sm">{loadError}</p>}
 
           {actionError && <p className="mt-6 text-danger text-sm">{actionError}</p>}
 
           {!loading && !loadError && filteredItems.length === 0 && (
-            <div className="mt-8 rounded-2xl border border-dashed border-border bg-surface/40 px-6 py-16 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-vault-green/10">
-                <Shield size={24} className="text-vault-green" />
+            <div className="mt-8 border border-dashed border-border px-6 py-20 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center border border-border bg-surface">
+                <Shield size={22} className="text-vault-green" />
               </div>
               <h2 className="mt-6 font-heading text-xl font-medium">
-                {emptyTitleFor(view, items.length === 0)}
+                {!isView && searchQuery === ""
+                  ? `Nothing in ${categories.find((c) => c.type === activeCategory)?.label} yet`
+                  : emptyTitleFor(view, items.length === 0)}
               </h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-muted">
                 {items.length === 0
-                  ? emptyHintFor(view)
+                  ? (!isView && searchQuery === "" ? "Use Add to create the first one." : emptyHintFor(view))
                   : "Try a different category or search term."}
               </p>
-              {items.length === 0 && canAdd && (
-                <button type="button" onClick={() => openAdd(isView ? null : activeCategory)} className="btn-secondary mt-6 gap-2">
+              {canAdd && !isView && searchQuery === "" && (
+                <button type="button" onClick={() => openAdd(activeCategory)} className="btn-secondary mt-6 gap-2">
                   <Plus size={16} />
                   Add your first item
                 </button>
@@ -426,7 +400,7 @@ function Dashboard() {
                   key={item._id}
                   item={item}
                   onOpen={openItem}
-                    onToggleStar={toggleStar}
+                  onToggleStar={toggleStar}
                   onArchive={archiveItem}
                   onUnarchive={unarchiveItem}
                   onDelete={moveToTrash}

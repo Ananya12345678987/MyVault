@@ -8,20 +8,20 @@ export default {
   theme: {
     extend: {
       colors: {
-                bg: "#000000",
+        bg: "#F4F2EA",
 
-        surface: "#0B0C0F",
-        "surface-alt": "#14161A",
+        surface: "#FBFAF6",
+        "surface-alt": "#E8EBDD",
 
-        border: "#1F2329",
+        border: "#D3D8C4",
 
-        text: "#F5F5F5",
-        "text-muted": "#8A8F98",
+        text: "#2A3025",
+        "text-muted": "#697160",
 
-        "vault-green": "#2DD4A0",
-        "vault-green-hover": "#4BE3B3",
+        "vault-green": "#5F7F5B",
+        "vault-green-hover": "#4D6A4A",
 
-        amber: "#D6A84F",
+        amber: "#A87420",
         danger: "#E5645F",
       },
 

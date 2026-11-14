@@ -14,6 +14,7 @@ const utilRoutes = require("./routes/utilRoutes");
 const errorHandler = require("./middleware/errorHandler");
 
 const app = express();
+app.set("trust proxy", 2); // Vercel -> Render: two proxy hops before the app
 
 // --- Global security middleware ---
 app.use(helmet()); // secure HTTP headers (CSP, X-Frame-Options, etc.)

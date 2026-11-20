@@ -3,9 +3,14 @@ const {
   hashPassword,
   verifyPassword,
   generateVaultSalt,
-  deriveVaultKey,
-    hashVaultKeyVerifier,
+    deriveVaultKey,
+  hashVaultKeyVerifier,
+  verifyVaultKeyVerifier,
 } = require("../security/crypto");
+const {
+  createVaultSession,
+  destroyVaultSession,
+} = require("../security/vaultSessionStore");
 const {
   signAccessToken,
   signRefreshToken,
@@ -35,8 +40,12 @@ const COOKIE_OPTS = {
  */
 async function register(req, res, next) {
   try {
-    const { email, password, masterPassword } = registerSchema.parse(req.body);
+    // Personal vault: sign-up is closed unless explicitly enabled.
+    if (process.env.ALLOW_REGISTRATION !== "true") {
+      return res.status(403).json({ error: "Sign-up is disabled." });
+    }
 
+    const { email, password, masterPassword } = registerSchema.parse(req.body);
     const existing = await User.findOne({ email });
     if (existing) {
       // Generic message — do not reveal that this email is already taken
@@ -132,6 +141,48 @@ async function me(req, res, next) {
   }
 }
 
+async function ownerLogin(req, res, next) {
+  try {
+    const { masterPassword } = req.body;
+    const ownerEmail = (process.env.OWNER_EMAIL || "").trim().toLowerCase();
+
+    if (!ownerEmail) {
+      return res.status(500).json({ error: "OWNER_EMAIL is not configured on the server." });
+    }
+    if (typeof masterPassword !== "string" || masterPassword.length === 0) {
+      return res.status(400).json({ error: "Master password is required." });
+    }
+
+    const wrong = () => res.status(401).json({ error: "Invalid master password." });
+
+    const user = await User.findOne({ email: ownerEmail }).select("+vaultSalt +vaultKeyCheckHash");
+    if (!user || !user.isActive) return wrong();
+
+    const vaultKey = deriveVaultKey(masterPassword, user.vaultSalt);
+    const valid = await verifyVaultKeyVerifier(user.vaultKeyCheckHash, vaultKey);
+    if (!valid) return wrong();
+
+    const userId = user._id.toString();
+    issueSessionCookies(res, userId);
+
+    const oldSessionId = req.cookies?.vaultSessionId;
+    if (oldSessionId) destroyVaultSession(oldSessionId, userId);
+
+    const vaultSessionId = createVaultSession(userId, vaultKey);
+    res.cookie("vaultSessionId", vaultSessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 15 * 60 * 1000,
+    });
+
+    return res.json({ user: { id: user._id, email: user.email }, unlocked: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
 function issueSessionCookies(res, userId) {
   const accessToken = signAccessToken(userId);
   const refreshToken = signRefreshToken(userId);
@@ -171,4 +222,4 @@ async function refresh(req, res) {
   }
 }
 
-module.exports = { register, login, logout, me, refresh };
+module.exports = { register, login, ownerLogin, logout, me };

@@ -1,16 +1,10 @@
-import { useState } from "react";
-
 import Login from "./pages/Login";
-import Register from "./pages/Register";
-
 import Dashboard from "./pages/Dashboard";
 
 import { useAuth } from "./context/AuthContext";
 
 function App() {
   const { user, loading } = useAuth();
-  const [authView, setAuthView] = useState("login");
-  
 
   if (loading) {
     return (
@@ -28,24 +22,11 @@ function App() {
     );
   }
 
-  /*
-   * Layer 1:
-   * No account session → Login.
-   */
-    if (!user) {
-    return authView === "register" ? (
-      <Register onSwitchToLogin={() => setAuthView("login")} />
-    ) : (
-      <Login onSwitchToRegister={() => setAuthView("register")} />
-    );
+  // Not signed in -> single master-password screen (no sign-up).
+  if (!user) {
+    return <Login />;
   }
 
-    /*
-   * Account authenticated — go straight to the dashboard. The vault
-   * unlock step is no longer a full-page gate; it now appears as an
-   * inline popup only at the moment an action actually needs it
-   * (see AddItemModal — item detail view will do the same later).
-   */
   return <Dashboard />;
 }
 
